@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ads-mcp-agent-local"
+version = "0.1.0"
+description = "Local-first ADS MCP orchestration agent over an OpenAI-compatible model API"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0"
+]
+
+[project.scripts]
+ads-agent = "cli.main:main"
+
+[tool.setuptools]
+packages = ["agent", "llm", "mcp_bridge", "cli", "config", "tests"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

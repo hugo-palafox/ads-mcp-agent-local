@@ -1,0 +1,6 @@
+agent
+cli
+config
+llm
+mcp_bridge
+tests

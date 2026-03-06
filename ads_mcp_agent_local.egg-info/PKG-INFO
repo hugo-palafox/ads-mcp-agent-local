@@ -1,0 +1,65 @@
+Metadata-Version: 2.4
+Name: ads-mcp-agent-local
+Version: 0.1.0
+Summary: Local-first ADS MCP orchestration agent over an OpenAI-compatible model API
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0.0; extra == "dev"
+
+# ads-mcp-agent-local
+
+Local-first orchestration agent that connects an OpenAI-compatible model endpoint to the existing `ads-mcp-server` tool surface for safe, read-only industrial Q&A.
+
+## Phase 1 goals
+
+- OpenAI-compatible model access, with Ollama as the first target
+- Read-only tool calling through the existing `ads-mcp-server`
+- CLI-first local testing and experimentation
+- Strong unit and integration test coverage
+- QA and handoff documentation for engineering teams
+
+## Project layout
+
+- `agent/`: orchestration loop, prompt rules, conversation state, tool registry, tool executor
+- `llm/`: OpenAI-compatible request and response handling
+- `mcp_bridge/`: ADS MCP bridge abstractions and local transport
+- `cli/`: local CLI entrypoints
+- `config/`: defaults and environment-driven settings
+- `tests/`: unit tests, integration tests, fixtures
+- `docs/`: architecture, flows, QA, and operational docs
+
+## Configuration
+
+Environment variables:
+
+- `ADS_AGENT_MODEL_BASE_URL` default `http://localhost:11434/v1`
+- `ADS_AGENT_MODEL_API_KEY` default `ollama`
+- `ADS_AGENT_MODEL_NAME` default `qwen3:8b`
+- `ADS_AGENT_TIMEOUT_SECONDS` default `30`
+- `ADS_AGENT_TEMPERATURE` default `0.1`
+- `ADS_AGENT_MAX_TOKENS` default `800`
+- `ADS_AGENT_MAX_TOOL_STEPS` default `4`
+- `ADS_AGENT_MAX_TOOL_FAILURES` default `2`
+- `ADS_AGENT_DEBUG` default `false`
+- `ADS_AGENT_MCP_SERVER_REPO` default `/mnt/c/Users/hugod/source/repos/ads-mcp-server`
+- `ADS_AGENT_MCP_TRANSPORT` default `inprocess`
+
+## Local usage
+
+```bash
+pip install -e .[dev]
+ads-agent tools list
+ads-agent diagnose-model
+ads-agent diagnose-mcp --machine M1
+ads-agent chat --machine M1 --prompt "What is the machine state?"
+ads-agent chat --machine M1 --prompt "Read all memory tags and summarize them" --show-tool-trace
+```
+
+For full setup and run instructions, see `USAGE.md`.
+
+## Design notes
+
+- The bridge keeps `ads-mcp-server` isolated behind `AdsMcpClient` and `AdsToolBridge`.
+- Phase 1 uses an in-process transport for local reliability and simple testing.
+- The rest of the agent is transport-agnostic and can later move to a networked MCP client without rewriting the tool loop.
