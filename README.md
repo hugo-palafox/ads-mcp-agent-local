@@ -1,11 +1,11 @@
 # ads-mcp-agent-local
 
-Local-first orchestration agent that connects an OpenAI-compatible model endpoint to the existing `ads-mcp-server` tool surface for safe, read-only industrial Q&A.
+Local-first orchestration agent that connects an OpenAI-compatible model endpoint to the existing `ads-mcp-server` tool surface for safe industrial Q&A with a guarded two-step write flow.
 
-## Phase 1 goals
+## Phase 2 goals
 
 - OpenAI-compatible model access, with Ollama as the first target
-- Read-only tool calling through the existing `ads-mcp-server`
+- Read/write tool calling through the existing `ads-mcp-server` with explicit runtime confirmation for writes
 - CLI-first local testing and experimentation
 - Strong unit and integration test coverage
 - QA and handoff documentation for engineering teams
@@ -27,7 +27,7 @@ Environment variables:
 - `ADS_AGENT_MODEL_BASE_URL` default `http://localhost:11434/v1`
 - `ADS_AGENT_MODEL_API_KEY` default `ollama`
 - `ADS_AGENT_MODEL_NAME` default `qwen3:8b`
-- `ADS_AGENT_TIMEOUT_SECONDS` default `30`
+- `ADS_AGENT_TIMEOUT_SECONDS` default `90`
 - `ADS_AGENT_TEMPERATURE` default `0.1`
 - `ADS_AGENT_MAX_TOKENS` default `800`
 - `ADS_AGENT_MAX_TOOL_STEPS` default `4`
@@ -42,9 +42,13 @@ Environment variables:
 pip install -e .[dev]
 ads-agent tools list
 ads-agent diagnose-model
+ads-agent model-chat --prompt "Reply with one sentence"
+ads-agent diagnose-model --timeout-seconds 120
 ads-agent diagnose-mcp --machine M1
 ads-agent chat --machine M1 --prompt "What is the machine state?"
+ads-agent chat --machine M1 --prompt "What is the machine state?" --timeout-seconds 120
 ads-agent chat --machine M1 --prompt "Read all memory tags and summarize them" --show-tool-trace
+ads-agent chat --machine M1 --prompt "Set Main.startButton to true" --show-tool-trace
 ```
 
 For full setup and run instructions, see `USAGE.md`.
@@ -52,5 +56,8 @@ For full setup and run instructions, see `USAGE.md`.
 ## Design notes
 
 - The bridge keeps `ads-mcp-server` isolated behind `AdsMcpClient` and `AdsToolBridge`.
-- Phase 1 uses an in-process transport for local reliability and simple testing.
+- The model can only call `request_tag_write`; the runtime performs `confirm_tag_write` after explicit user input.
+- Non-interactive sessions auto-cancel pending write requests for safety.
+- Local tool-enabled model calls can take longer than trivial diagnostics, so the CLI supports `--timeout-seconds` and now defaults to 90 seconds.
+- Phase 2 still uses an in-process transport for local reliability and simple testing.
 - The rest of the agent is transport-agnostic and can later move to a networked MCP client without rewriting the tool loop.

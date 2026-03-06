@@ -32,3 +32,9 @@ class AdsToolBridge:
 
     def read_memory(self, machine_id: str) -> dict[str, Any]:
         return self.client.invoke("read_memory", machine_id=machine_id)
+
+    def request_tag_write(self, machine_id: str, tag_query: str, value: Any) -> dict[str, Any]:
+        return self.client.invoke("request_tag_write", machine_id=machine_id, tag_query=tag_query, value=value)
+
+    def confirm_tag_write(self, machine_id: str, request_id: str, confirmed: bool) -> dict[str, Any]:
+        return self.client.invoke("confirm_tag_write", machine_id=machine_id, request_id=request_id, confirmed=confirmed)

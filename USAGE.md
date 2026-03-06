@@ -67,7 +67,7 @@ The project reads these environment variables:
 - `ADS_AGENT_MODEL_BASE_URL` default `http://localhost:11434/v1`
 - `ADS_AGENT_MODEL_API_KEY` default `ollama`
 - `ADS_AGENT_MODEL_NAME` default `qwen3:8b`
-- `ADS_AGENT_TIMEOUT_SECONDS` default `30`
+- `ADS_AGENT_TIMEOUT_SECONDS` default `90`
 - `ADS_AGENT_TEMPERATURE` default `0.1`
 - `ADS_AGENT_MAX_TOKENS` default `800`
 - `ADS_AGENT_MAX_TOOL_STEPS` default `4`
@@ -93,12 +93,19 @@ $env:ADS_AGENT_MCP_SERVER_REPO = "C:\Users\hugod\source\repos\ads-mcp-server"
 
 ```powershell
 ads-agent diagnose-model
+ads-agent model-chat --prompt "Reply with one short sentence"
+```
+
+If the model is slow under tool use, increase the timeout for the current command:
+
+```powershell
+ads-agent diagnose-model --timeout-seconds 120
 ```
 
 ### 7.2 MCP bridge connectivity
 
 ```powershell
-ads-agent diagnose-mcp --machine M1
+ads-agent diagnose-mcp --machine Machine1
 ```
 
 ## 8. Chat Commands
@@ -106,38 +113,94 @@ ads-agent diagnose-mcp --machine M1
 ### 8.1 Basic machine state
 
 ```powershell
-ads-agent chat --machine M1 --prompt "What is the machine state?"
+ads-agent chat --machine Machine1 --prompt "What is the machine state?"
 ```
 
 ### 8.2 Broad memory summary
 
 ```powershell
-ads-agent chat --machine M1 --prompt "Read all memory tags and summarize them"
+ads-agent chat --machine Machine1 --prompt "Read all memory tags and summarize them"
 ```
 
 ### 8.3 Specific question
 
 ```powershell
-ads-agent chat --machine M1 --prompt "Is the machine running or faulted?"
+ads-agent chat --machine Machine1 --prompt "Is the machine running or faulted?"
 ```
 
 ### 8.4 Show tool trace
 
 ```powershell
-ads-agent chat --machine M1 --prompt "What is the machine state?" --show-tool-trace
+ads-agent chat --machine Machine1 --prompt "What is the machine state?" --show-tool-trace
 ```
 
 ### 8.5 Debug mode
 
 ```powershell
-ads-agent chat --machine M1 --prompt "What is the machine state?" --debug
+ads-agent chat --machine Machine1 --prompt "What is the machine state?" --debug
 ```
 
 ### 8.6 Override model/base URL/step limit
 
 ```powershell
-ads-agent chat --machine M1 --prompt "What is the machine state?" --model qwen3:8b --base-url http://localhost:11434/v1 --max-tool-steps 6
+ads-agent chat --machine Machine1 --prompt "What is the machine state?" --model qwen3:8b --base-url http://localhost:11434/v1 --max-tool-steps 6
 ```
+
+### 8.6.1 Override timeout for slower local models
+
+```powershell
+ads-agent chat --machine Machine1 --prompt "What is the machine state?" --timeout-seconds 120
+```
+
+### 8.7 Write request with confirmation checkpoint
+
+```powershell
+ads-agent chat --machine Machine1 --prompt "Set Main.startButton to true" --show-tool-trace
+```
+
+Expected behavior:
+
+- The model calls `request_tag_write`.
+- The CLI shows a confirmation prompt with machine, resolved tag, requested value, and request id.
+- Enter `y`/`yes` to approve. Any other input cancels.
+- The runtime then calls `confirm_tag_write` and the final answer is grounded in the returned status (`written`, `cancelled`, `expired`, or `rejected`).
+
+Non-interactive behavior:
+
+- If stdin/stdout is not interactive, pending writes are auto-cancelled and the CLI prints an auto-cancel notice.
+
+### 8.8 More write examples
+
+Write a boolean button tag:
+
+```powershell
+ads-agent chat --machine Machine1 --prompt "Set Main.startButton to true"
+```
+
+Cancel a write at the confirmation prompt:
+
+```powershell
+ads-agent chat --machine Machine1 --prompt "Set Main.stopButton to false" --show-tool-trace
+```
+
+Use a partial tag query and let the server resolve the full tag name:
+
+```powershell
+ads-agent chat --machine Machine1 --prompt "Turn the start button on"
+```
+
+Use module invocation instead of the installed script:
+
+```powershell
+python -m cli.main chat --machine Machine1 --prompt "Set Main.startButton to true" --timeout-seconds 120
+```
+
+What you should expect during these write examples:
+
+- The model requests `request_tag_write` first.
+- The server resolves one full tag name and returns a pending request id.
+- The CLI asks for confirmation before any write is attempted.
+- Typing `y` or `yes` approves the write. Any other response cancels it.
 
 ## 9. List Exposed Tools
 
@@ -145,12 +208,17 @@ ads-agent chat --machine M1 --prompt "What is the machine state?" --model qwen3:
 ads-agent tools list
 ```
 
-Phase 1 tools:
+Model-exposed tools:
 
 - `list_groups`
 - `list_memory_tags`
 - `read_tag`
 - `read_memory`
+- `request_tag_write`
+
+Runtime-only tool (not model-exposed):
+
+- `confirm_tag_write`
 
 ## 10. Fallback If `ads-agent` Is Not Found
 
@@ -158,8 +226,9 @@ Use module invocation directly:
 
 ```powershell
 python -m cli.main diagnose-model
-python -m cli.main diagnose-mcp --machine M1
-python -m cli.main chat --machine M1 --prompt "What is the machine state?"
+python -m cli.main model-chat --prompt "Reply with one short sentence"
+python -m cli.main diagnose-mcp --machine Machine1
+python -m cli.main chat --machine Machine1 --prompt "What is the machine state?"
 ```
 
 ## 11. Common Errors and Fixes
@@ -189,8 +258,13 @@ Fix: remove `in` and either `cd` first or pass a valid Windows path.
 - Check `ADS_AGENT_MODEL_BASE_URL`
 - Confirm model exists: `ollama list`
 
+### `ERROR: Model request timed out`
+
+- Increase the timeout for the current command: `ads-agent chat --machine Machine1 --prompt "What is the machine state?" --timeout-seconds 120`
+- Or set a higher session default: `$env:ADS_AGENT_TIMEOUT_SECONDS = "120"`
+- `diagnose-model` can succeed while `chat` still times out because tool-enabled prompts are larger and slower
+
 ### MCP import/path errors
 
 - Confirm `ADS_AGENT_MCP_SERVER_REPO` points to the local server repo
 - Confirm server repo is installed: `python -m pip install -e .` inside `ads-mcp-server`
-

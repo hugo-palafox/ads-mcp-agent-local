@@ -22,3 +22,17 @@ def test_transform_responses_correctly() -> None:
     bridge = AdsToolBridge(client)  # type: ignore[arg-type]
     result = bridge.read_tag("M1", "Globals.bRun")
     assert result["value"] is True
+
+
+def test_write_tool_calls_map_correctly() -> None:
+    client = FakeMcpClient(
+        responses={
+            "request_tag_write": {"status": "pending", "request_id": "r1", "resolved_tag_name": "Main.startButton"},
+            "confirm_tag_write": {"status": "written", "tag_name": "Main.startButton", "written_value": True},
+        }
+    )
+    bridge = AdsToolBridge(client)  # type: ignore[arg-type]
+    pending = bridge.request_tag_write("M1", "startButton", True)
+    written = bridge.confirm_tag_write("M1", "r1", True)
+    assert pending["status"] == "pending"
+    assert written["status"] == "written"

@@ -2,7 +2,13 @@
 
 ## Model timeout
 
-`OpenAICompatClient` raises `RuntimeError("Model request timed out")` and the CLI surfaces the failure.
+`OpenAICompatClient` raises `RuntimeError("Model request timed out")` and the CLI surfaces it as `ERROR: Model request timed out` without a traceback.
+
+Mitigations:
+
+- Increase `ADS_AGENT_TIMEOUT_SECONDS`.
+- Override per command with `--timeout-seconds`.
+- Expect tool-enabled chats to take longer than `diagnose-model`.
 
 ## Malformed tool call
 

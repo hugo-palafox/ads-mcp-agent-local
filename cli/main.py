@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
+from typing import Any, Callable
 from typing import Sequence
 
 from agent.orchestrator import AgentOrchestrator
@@ -14,17 +16,43 @@ from mcp_bridge.client import AdsMcpClient
 from mcp_bridge.transport import InProcessAdsMcpTransport
 
 
-def build_orchestrator(settings: Settings) -> AgentOrchestrator:
+def build_orchestrator(
+    settings: Settings,
+    write_confirmer: Callable[[dict[str, Any]], bool] | None = None,
+) -> AgentOrchestrator:
     transport = InProcessAdsMcpTransport(settings.ads_mcp_server_repo)
     bridge = AdsToolBridge(AdsMcpClient(transport))
     registry = ToolRegistry()
     executor = ToolExecutor(registry, bridge)
     llm_client = LLMClient(settings)
-    return AgentOrchestrator(settings, llm_client, registry, executor)
+    return AgentOrchestrator(settings, llm_client, registry, executor, write_confirmer=write_confirmer)
 
 
 def _print(data: object) -> None:
     print(json.dumps(data, indent=2, default=str))
+
+
+def _make_write_confirmer() -> Callable[[dict[str, Any]], bool]:
+    interactive = sys.stdin.isatty() and sys.stdout.isatty()
+
+    def confirm(pending: dict[str, Any]) -> bool:
+        request_id = pending.get("request_id")
+        tag_name = pending.get("resolved_tag_name")
+        value = pending.get("value")
+        machine_id = pending.get("machine_id")
+        if not interactive:
+            print(
+                "Write confirmation requires interactive input. "
+                f"Auto-cancelling request_id={request_id} machine={machine_id} tag={tag_name} value={value}."
+            )
+            return False
+        answer = input(
+            "Confirm PLC write "
+            f"(machine={machine_id}, tag={tag_name}, value={value}, request_id={request_id}) [y/N]: "
+        ).strip().lower()
+        return answer in {"y", "yes"}
+
+    return confirm
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -39,6 +67,7 @@ def _build_parser() -> argparse.ArgumentParser:
     chat_parser.add_argument("--max-tool-steps", type=int)
     chat_parser.add_argument("--model")
     chat_parser.add_argument("--base-url")
+    chat_parser.add_argument("--timeout-seconds", type=float)
 
     tools_parser = subparsers.add_parser("tools", help="Tool inspection commands")
     tools_subparsers = tools_parser.add_subparsers(dest="tools_command", required=True)
@@ -47,6 +76,13 @@ def _build_parser() -> argparse.ArgumentParser:
     diagnose_model_parser = subparsers.add_parser("diagnose-model", help="Validate model connectivity")
     diagnose_model_parser.add_argument("--model")
     diagnose_model_parser.add_argument("--base-url")
+    diagnose_model_parser.add_argument("--timeout-seconds", type=float)
+
+    model_chat_parser = subparsers.add_parser("model-chat", help="Send a direct prompt to the model without tools")
+    model_chat_parser.add_argument("--prompt", required=True)
+    model_chat_parser.add_argument("--model")
+    model_chat_parser.add_argument("--base-url")
+    model_chat_parser.add_argument("--timeout-seconds", type=float)
 
     diagnose_mcp_parser = subparsers.add_parser("diagnose-mcp", help="Validate MCP bridge connectivity")
     diagnose_mcp_parser.add_argument("--machine", default="M1")
@@ -58,51 +94,78 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "tools" and args.tools_command == "list":
-        _print(ToolRegistry().list_for_model())
-        return 0
+    try:
+        if args.command == "tools" and args.tools_command == "list":
+            _print(ToolRegistry().list_for_model())
+            return 0
 
-    if args.command == "diagnose-model":
-        settings = Settings.from_env()
-        if args.model:
-            settings.model_name = args.model
-        if args.base_url:
-            settings.model_base_url = args.base_url
-        client = LLMClient(settings)
-        response = client.complete(
-            messages=[{"role": "user", "content": "Reply with the single word OK."}],
-            tools=[],
-        )
-        _print({"content": response.content, "tool_calls": [call.name for call in response.tool_calls]})
-        return 0
+        if args.command == "diagnose-model":
+            settings = Settings.from_env()
+            if args.model:
+                settings.model_name = args.model
+            if args.base_url:
+                settings.model_base_url = args.base_url
+            if args.timeout_seconds is not None:
+                settings.timeout_seconds = args.timeout_seconds
+            client = LLMClient(settings)
+            response = client.complete(
+                messages=[{"role": "user", "content": "Reply with the single word OK."}],
+                tools=[],
+            )
+            _print({"content": response.content, "tool_calls": [call.name for call in response.tool_calls]})
+            return 0
 
-    if args.command == "diagnose-mcp":
-        settings = Settings.from_env()
-        transport = InProcessAdsMcpTransport(settings.ads_mcp_server_repo)
-        bridge = AdsToolBridge(AdsMcpClient(transport))
-        _print(
-            {
-                "machine": args.machine,
-                "list_groups": bridge.list_groups(args.machine),
-                "list_memory_tags": bridge.list_memory_tags(args.machine),
-            }
-        )
-        return 0
+        if args.command == "model-chat":
+            settings = Settings.from_env()
+            if args.model:
+                settings.model_name = args.model
+            if args.base_url:
+                settings.model_base_url = args.base_url
+            if args.timeout_seconds is not None:
+                settings.timeout_seconds = args.timeout_seconds
+            client = LLMClient(settings)
+            response = client.complete(
+                messages=[{"role": "user", "content": args.prompt}],
+                tools=[],
+            )
+            print(response.content or "No answer returned by the model.")
+            return 0
 
-    if args.command == "chat":
-        settings = Settings.from_env()
-        if args.model:
-            settings.model_name = args.model
-        if args.base_url:
-            settings.model_base_url = args.base_url
-        if args.max_tool_steps is not None:
-            settings.max_tool_steps = args.max_tool_steps
-        settings.debug = settings.debug or args.debug
-        result = build_orchestrator(settings).run(machine_id=args.machine, prompt=args.prompt)
-        print(result.answer)
-        if args.show_tool_trace or settings.debug:
-            _print([item.to_message_payload() for item in result.tool_trace])
-        return 0
+        if args.command == "diagnose-mcp":
+            settings = Settings.from_env()
+            transport = InProcessAdsMcpTransport(settings.ads_mcp_server_repo)
+            bridge = AdsToolBridge(AdsMcpClient(transport))
+            _print(
+                {
+                    "machine": args.machine,
+                    "list_groups": bridge.list_groups(args.machine),
+                    "list_memory_tags": bridge.list_memory_tags(args.machine),
+                }
+            )
+            return 0
+
+        if args.command == "chat":
+            settings = Settings.from_env()
+            if args.model:
+                settings.model_name = args.model
+            if args.base_url:
+                settings.model_base_url = args.base_url
+            if args.timeout_seconds is not None:
+                settings.timeout_seconds = args.timeout_seconds
+            if args.max_tool_steps is not None:
+                settings.max_tool_steps = args.max_tool_steps
+            settings.debug = settings.debug or args.debug
+            result = build_orchestrator(settings, write_confirmer=_make_write_confirmer()).run(
+                machine_id=args.machine,
+                prompt=args.prompt,
+            )
+            print(result.answer)
+            if args.show_tool_trace or settings.debug:
+                _print([item.to_message_payload() for item in result.tool_trace])
+            return 0
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
 
     parser.error("Unhandled command")
     return 2

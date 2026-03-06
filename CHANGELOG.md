@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## 0.2.0 - 2026-03-06
+
+### Added
+- Added model-exposed `request_tag_write` to the tool registry and MCP bridge wrappers.
+- Added orchestrator-controlled write confirmation checkpoint that performs `confirm_tag_write` only after explicit user approval.
+- Added non-interactive auto-cancel behavior for pending write requests.
+- Added unit and integration coverage for request/confirm write flow, including approve, deny, expired, and auto-cancel scenarios.
+- Added dedicated implementation handoff document: `HANDOFF_WRITE_FLOW_0.2.0.md`.
+
+### Changed
+- Changed prompt policy from strict read-only language to a write-safe two-step contract that requires confirmation evidence before any write claim.
+- Changed docs across README, usage, architecture, flow, bridge, and QA to reflect the guarded write workflow.
+
+### Fixed
+- Fixed tool argument validation by enforcing declared schema types, including scalar-only validation for `request_tag_write.value`.
+
+### Removed
+- N/A
+
+### Notes
+- `confirm_tag_write` is orchestration-controlled and intentionally not exposed as a model-callable tool.
+
 ## 0.1.1 - 2026-03-06
 
 ### Added

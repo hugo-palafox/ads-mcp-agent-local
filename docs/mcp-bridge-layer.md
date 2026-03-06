@@ -2,12 +2,14 @@
 
 The MCP bridge isolates `ads-mcp-server` from the orchestration code.
 
-## Exposed Phase 1 tools
+## Exposed tools
 
 - `list_groups`
 - `list_memory_tags`
 - `read_tag`
 - `read_memory`
+- `request_tag_write` (model-exposed)
+- `confirm_tag_write` (runtime-only, orchestrator invoked)
 
 ## Internal structure
 
@@ -19,4 +21,5 @@ The MCP bridge isolates `ads-mcp-server` from the orchestration code.
 
 - The LLM layer never imports or understands server internals.
 - The tool executor stays deterministic and easy to mock.
+- Orchestrator-only confirm calls keep user consent enforcement outside model control.
 - The transport can later change to a true MCP network client without rewriting the registry or orchestrator.

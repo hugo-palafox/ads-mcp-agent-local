@@ -10,8 +10,19 @@
 6. `AdsMcpClient.invoke()` calls the configured transport.
 7. `InProcessAdsMcpTransport` imports `ads-mcp-server` tool functions and executes the requested server tool.
 8. Tool results are appended back into the conversation as `tool` messages.
-9. The orchestrator calls the model again until it gets a final answer or hits a guardrail.
-10. The CLI prints the final answer and optional tool trace.
+9. If `request_tag_write` returns `status: "pending"`, the orchestrator asks the CLI confirmer for explicit user approval.
+10. The orchestrator performs `confirm_tag_write` internally (not model-exposed), appends that result, and then continues the loop.
+11. The orchestrator calls the model again until it gets a final answer or hits a guardrail.
+12. The CLI prints the final answer and optional tool trace.
+
+## Write confirmation branch
+
+1. The model calls `request_tag_write(machine_id, tag_query, value)`.
+2. The server validates write guardrails and returns either `rejected` or `pending`.
+3. For `pending`, the CLI prompts the user with resolved tag, value, and request id.
+4. User approval triggers `confirm_tag_write(..., confirmed=true)`.
+5. User denial or non-interactive mode triggers `confirm_tag_write(..., confirmed=false)`.
+6. The final answer must be grounded in the confirmation result (`written`, `cancelled`, `expired`, or `rejected`).
 
 ## Error flow
 

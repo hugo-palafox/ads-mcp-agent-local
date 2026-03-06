@@ -11,9 +11,16 @@
 ## Separation of responsibilities
 
 - The model layer only knows about messages, tools, and OpenAI-style payloads.
-- The orchestrator decides when to continue, stop, or surface tool failures.
+- The orchestrator decides when to continue, stop, surface tool failures, and gate confirmed writes.
 - The MCP bridge owns the server integration contract and hides local transport details.
 - `ads-mcp-server` remains unchanged and reusable.
+
+## Write authority split
+
+- The model can request a write only through `request_tag_write`.
+- The model cannot call `confirm_tag_write` directly.
+- The CLI/orchestrator is the write authority that collects explicit user confirmation and then calls `confirm_tag_write`.
+- In non-interactive sessions, the orchestrator cancels pending writes by default.
 
 ## Local-first bridge choice
 
