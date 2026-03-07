@@ -42,18 +42,16 @@ Environment variables:
 pip install -e .[dev]
 ads-agent tools list
 ads-agent diagnose-model
+ads-agent diagnose-model --timeout-seconds 120
+
 ads-agent model-chat --prompt "Reply with one sentence"
 ads-agent model-chat --prompt "Reply with one sentence" --show-timing
-ads-agent diagnose-model --timeout-seconds 120
-ads-agent diagnose-mcp --machine M1
-ads-agent chat --machine M1 --prompt "What is the machine state?"
-ads-agent chat --machine M1 --prompt "What is the machine state?" --show-timing
-ads-agent chat --machine M1 --prompt "What is the machine state?" --timeout-seconds 120
-ads-agent chat --machine M1 --prompt "Read all memory tags and summarize them" --show-tool-trace
-ads-agent chat --machine M1 --prompt "Read all memory tags and summarize them" --show-tool-trace --tool-trace-format pretty
-ads-agent chat --machine M1 --prompt "Start Machine" --show-tool-trace --tool-trace-format pretty --show-timing
-ads-agent chat --machine M1 --prompt "Stop Machine" --show-tool-trace --tool-trace-format pretty --show-timing
-ads-agent chat --machine M1 --prompt "Set Main.startButton to true" --show-tool-trace
+
+ads-agent diagnose-mcp --machine Machine1
+ads-agent chat --machine Machine1 --prompt "What is the machine state?"
+ads-agent chat --machine Machine1 --prompt "What is the machine state?" --timeout-seconds 120
+ads-agent chat --machine Machine1 --prompt "Read all memory tags and summarize them" --show-tool-trace
+ads-agent chat --machine Machine1 --prompt "Set Main.startButton to true" --show-tool-trace
 ```
 
 For full setup and run instructions, see `USAGE.md`.
@@ -66,3 +64,9 @@ For full setup and run instructions, see `USAGE.md`.
 - Local tool-enabled model calls can take longer than trivial diagnostics, so the CLI supports `--timeout-seconds` and now defaults to 90 seconds.
 - Phase 2 still uses an in-process transport for local reliability and simple testing.
 - The rest of the agent is transport-agnostic and can later move to a networked MCP client without rewriting the tool loop.
+
+
+ads-agent chat --machine Machine1 --prompt "Read all memory tags and summarize them" --show-timing --show-tool-trace --tool-trace-format pretty
+ads-agent chat --machine Machine1 --prompt "What is the machine state?" --show-timing --show-tool-trace --tool-trace-format pretty
+ads-agent chat --machine Machine1 --prompt "Start Machine" --show-timing --show-tool-trace --tool-trace-format pretty
+ads-agent chat --machine Machine1 --prompt "Stop Machine" --show-timing --show-tool-trace --tool-trace-format pretty
