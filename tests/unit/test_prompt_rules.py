@@ -21,3 +21,9 @@ def test_include_prefer_memory_first_rule() -> None:
 def test_include_write_confirmation_rule() -> None:
     prompt = build_system_prompt("M1")
     assert "request_tag_write first" in prompt
+
+
+def test_include_ambiguity_context_checklist_rule() -> None:
+    prompt = build_system_prompt("M1")
+    assert "If the user request is ambiguous" in prompt
+    assert "What is the MCP PLC Agent in your setup" in prompt

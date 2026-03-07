@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from typing import Any, Callable
 from typing import Sequence
 
@@ -30,6 +31,44 @@ def build_orchestrator(
 
 def _print(data: object) -> None:
     print(json.dumps(data, indent=2, default=str))
+
+
+def _print_tool_trace_pretty(tool_trace: list[Any]) -> None:
+    print("Tool Trace:")
+    if not tool_trace:
+        print("- (no tool calls)")
+        return
+    for idx, item in enumerate(tool_trace, start=1):
+        status = "OK" if item.ok else "ERROR"
+        print(f"{idx}. {item.tool_name} [{status}]")
+        if not item.ok:
+            print(f"   Error: {item.error}")
+            continue
+        output = item.output
+        if item.tool_name == "read_memory" and isinstance(output, dict):
+            if not output:
+                print("   Result: <empty>")
+            else:
+                key_values = ", ".join(f"{k}={v}" for k, v in output.items())
+                print(f"   Result: {key_values}")
+            continue
+        if item.tool_name == "request_tag_write" and isinstance(output, dict):
+            print(
+                "   Result: "
+                f"status={output.get('status')}, "
+                f"request_id={output.get('request_id')}, "
+                f"resolved_tag_name={output.get('resolved_tag_name')}"
+            )
+            continue
+        if item.tool_name == "confirm_tag_write" and isinstance(output, dict):
+            print(
+                "   Result: "
+                f"status={output.get('status')}, "
+                f"tag_name={output.get('tag_name')}, "
+                f"written_value={output.get('written_value')}"
+            )
+            continue
+        print(f"   Result: {json.dumps(output, default=str)}")
 
 
 def _make_write_confirmer() -> Callable[[dict[str, Any]], bool]:
@@ -64,10 +103,12 @@ def _build_parser() -> argparse.ArgumentParser:
     chat_parser.add_argument("--prompt", required=True)
     chat_parser.add_argument("--debug", action="store_true")
     chat_parser.add_argument("--show-tool-trace", action="store_true")
+    chat_parser.add_argument("--tool-trace-format", choices=("json", "pretty"), default="json")
     chat_parser.add_argument("--max-tool-steps", type=int)
     chat_parser.add_argument("--model")
     chat_parser.add_argument("--base-url")
     chat_parser.add_argument("--timeout-seconds", type=float)
+    chat_parser.add_argument("--show-timing", action="store_true")
 
     tools_parser = subparsers.add_parser("tools", help="Tool inspection commands")
     tools_subparsers = tools_parser.add_subparsers(dest="tools_command", required=True)
@@ -83,6 +124,7 @@ def _build_parser() -> argparse.ArgumentParser:
     model_chat_parser.add_argument("--model")
     model_chat_parser.add_argument("--base-url")
     model_chat_parser.add_argument("--timeout-seconds", type=float)
+    model_chat_parser.add_argument("--show-timing", action="store_true")
 
     diagnose_mcp_parser = subparsers.add_parser("diagnose-mcp", help="Validate MCP bridge connectivity")
     diagnose_mcp_parser.add_argument("--machine", default="M1")
@@ -123,12 +165,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                 settings.model_base_url = args.base_url
             if args.timeout_seconds is not None:
                 settings.timeout_seconds = args.timeout_seconds
+            started_at = time.perf_counter()
             client = LLMClient(settings)
             response = client.complete(
                 messages=[{"role": "user", "content": args.prompt}],
                 tools=[],
             )
             print(response.content or "No answer returned by the model.")
+            if args.show_timing:
+                elapsed = time.perf_counter() - started_at
+                print(f"Response time: {elapsed:.3f}s")
             return 0
 
         if args.command == "diagnose-mcp":
@@ -155,13 +201,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.max_tool_steps is not None:
                 settings.max_tool_steps = args.max_tool_steps
             settings.debug = settings.debug or args.debug
+            started_at = time.perf_counter()
             result = build_orchestrator(settings, write_confirmer=_make_write_confirmer()).run(
                 machine_id=args.machine,
                 prompt=args.prompt,
             )
             print(result.answer)
             if args.show_tool_trace or settings.debug:
-                _print([item.to_message_payload() for item in result.tool_trace])
+                if args.tool_trace_format == "pretty":
+                    _print_tool_trace_pretty(result.tool_trace)
+                else:
+                    _print([item.to_message_payload() for item in result.tool_trace])
+            if args.show_timing:
+                elapsed = time.perf_counter() - started_at
+                print(f"Response time: {elapsed:.3f}s")
             return 0
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

@@ -94,6 +94,7 @@ $env:ADS_AGENT_MCP_SERVER_REPO = "C:\Users\hugod\source\repos\ads-mcp-server"
 ```powershell
 ads-agent diagnose-model
 ads-agent model-chat --prompt "Reply with one short sentence"
+ads-agent model-chat --prompt "Reply with one short sentence" --show-timing
 ```
 
 If the model is slow under tool use, increase the timeout for the current command:
@@ -116,6 +117,12 @@ ads-agent diagnose-mcp --machine Machine1
 ads-agent chat --machine Machine1 --prompt "What is the machine state?"
 ```
 
+With response timing:
+
+```powershell
+ads-agent chat --machine Machine1 --prompt "What is the machine state?" --show-timing
+```
+
 ### 8.2 Broad memory summary
 
 ```powershell
@@ -132,6 +139,12 @@ ads-agent chat --machine Machine1 --prompt "Is the machine running or faulted?"
 
 ```powershell
 ads-agent chat --machine Machine1 --prompt "What is the machine state?" --show-tool-trace
+```
+
+Human-readable trace for demos:
+
+```powershell
+ads-agent chat --machine Machine1 --prompt "What is the machine state?" --show-tool-trace --tool-trace-format pretty
 ```
 
 ### 8.5 Debug mode
@@ -189,6 +202,13 @@ Use a partial tag query and let the server resolve the full tag name:
 ads-agent chat --machine Machine1 --prompt "Turn the start button on"
 ```
 
+Direct demo intent commands (runtime will perform guarded write flow even if model returns empty text):
+
+```powershell
+ads-agent chat --machine Machine1 --prompt "Start Machine" --show-tool-trace --tool-trace-format pretty --show-timing
+ads-agent chat --machine Machine1 --prompt "Stop Machine" --show-tool-trace --tool-trace-format pretty --show-timing
+```
+
 Use module invocation instead of the installed script:
 
 ```powershell
@@ -229,6 +249,7 @@ python -m cli.main diagnose-model
 python -m cli.main model-chat --prompt "Reply with one short sentence"
 python -m cli.main diagnose-mcp --machine Machine1
 python -m cli.main chat --machine Machine1 --prompt "What is the machine state?"
+python -m cli.main chat --machine Machine1 --prompt "What is the machine state?" --show-timing
 ```
 
 ## 11. Common Errors and Fixes

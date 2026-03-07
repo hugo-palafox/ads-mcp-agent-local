@@ -43,11 +43,16 @@ pip install -e .[dev]
 ads-agent tools list
 ads-agent diagnose-model
 ads-agent model-chat --prompt "Reply with one sentence"
+ads-agent model-chat --prompt "Reply with one sentence" --show-timing
 ads-agent diagnose-model --timeout-seconds 120
 ads-agent diagnose-mcp --machine M1
 ads-agent chat --machine M1 --prompt "What is the machine state?"
+ads-agent chat --machine M1 --prompt "What is the machine state?" --show-timing
 ads-agent chat --machine M1 --prompt "What is the machine state?" --timeout-seconds 120
 ads-agent chat --machine M1 --prompt "Read all memory tags and summarize them" --show-tool-trace
+ads-agent chat --machine M1 --prompt "Read all memory tags and summarize them" --show-tool-trace --tool-trace-format pretty
+ads-agent chat --machine M1 --prompt "Start Machine" --show-tool-trace --tool-trace-format pretty --show-timing
+ads-agent chat --machine M1 --prompt "Stop Machine" --show-tool-trace --tool-trace-format pretty --show-timing
 ads-agent chat --machine M1 --prompt "Set Main.startButton to true" --show-tool-trace
 ```
 
