@@ -108,7 +108,20 @@ def _build_parser() -> argparse.ArgumentParser:
     chat_parser.add_argument("--model")
     chat_parser.add_argument("--base-url")
     chat_parser.add_argument("--timeout-seconds", type=float)
-    chat_parser.add_argument("--show-timing", action="store_true")
+    chat_timing_group = chat_parser.add_mutually_exclusive_group()
+    chat_timing_group.add_argument(
+        "--show-timing",
+        dest="show_timing",
+        action="store_true",
+        default=True,
+        help="Show response time in seconds (default: enabled).",
+    )
+    chat_timing_group.add_argument(
+        "--hide-timing",
+        dest="show_timing",
+        action="store_false",
+        help="Hide response time output.",
+    )
 
     tools_parser = subparsers.add_parser("tools", help="Tool inspection commands")
     tools_subparsers = tools_parser.add_subparsers(dest="tools_command", required=True)
@@ -124,7 +137,20 @@ def _build_parser() -> argparse.ArgumentParser:
     model_chat_parser.add_argument("--model")
     model_chat_parser.add_argument("--base-url")
     model_chat_parser.add_argument("--timeout-seconds", type=float)
-    model_chat_parser.add_argument("--show-timing", action="store_true")
+    model_timing_group = model_chat_parser.add_mutually_exclusive_group()
+    model_timing_group.add_argument(
+        "--show-timing",
+        dest="show_timing",
+        action="store_true",
+        default=True,
+        help="Show response time in seconds (default: enabled).",
+    )
+    model_timing_group.add_argument(
+        "--hide-timing",
+        dest="show_timing",
+        action="store_false",
+        help="Hide response time output.",
+    )
 
     diagnose_mcp_parser = subparsers.add_parser("diagnose-mcp", help="Validate MCP bridge connectivity")
     diagnose_mcp_parser.add_argument("--machine", default="M1")

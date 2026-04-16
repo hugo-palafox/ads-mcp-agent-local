@@ -94,8 +94,9 @@ $env:ADS_AGENT_MCP_SERVER_REPO = "C:\Users\hugod\source\repos\ads-mcp-server"
 ```powershell
 ads-agent diagnose-model
 ads-agent model-chat --prompt "Reply with one short sentence"
-ads-agent model-chat --prompt "Reply with one short sentence" --show-timing
 ```
+
+Timing is printed by default after each `chat` and `model-chat` response. Use `--hide-timing` to suppress timing output.
 
 If the model is slow under tool use, increase the timeout for the current command:
 
@@ -115,12 +116,6 @@ ads-agent diagnose-mcp --machine Machine1
 
 ```powershell
 ads-agent chat --machine Machine1 --prompt "What is the machine state?"
-```
-
-With response timing:
-
-```powershell
-ads-agent chat --machine Machine1 --prompt "What is the machine state?" --show-timing
 ```
 
 ### 8.2 Broad memory summary
@@ -205,8 +200,8 @@ ads-agent chat --machine Machine1 --prompt "Turn the start button on"
 Direct demo intent commands (runtime will perform guarded write flow even if model returns empty text):
 
 ```powershell
-ads-agent chat --machine Machine1 --prompt "Start Machine" --show-tool-trace --tool-trace-format pretty --show-timing
-ads-agent chat --machine Machine1 --prompt "Stop Machine" --show-tool-trace --tool-trace-format pretty --show-timing
+ads-agent chat --machine Machine1 --prompt "Start Machine" --show-tool-trace --tool-trace-format pretty
+ads-agent chat --machine Machine1 --prompt "Stop Machine" --show-tool-trace --tool-trace-format pretty
 ```
 
 Use module invocation instead of the installed script:
@@ -221,6 +216,52 @@ What you should expect during these write examples:
 - The server resolves one full tag name and returns a pending request id.
 - The CLI asks for confirmation before any write is attempted.
 - Typing `y` or `yes` approves the write. Any other response cancels it.
+
+### 8.9 Teach safe behavior and view learning registry
+
+Teach tag behavior mapping:
+
+```powershell
+ads-agent chat --machine Machine1 --prompt "Teach that nMachineState == 2 means faulted"
+```
+
+Teach response behavior preference:
+
+```powershell
+ads-agent chat --machine Machine1 --prompt "Teach response behavior: be concise and use bullet points"
+```
+
+Show full learned registry JSON for the machine:
+
+```powershell
+ads-agent chat --machine Machine1 --prompt "Show learning registry json"
+```
+
+Learning guardrail:
+
+- The agent only learns two safe categories: `tag behavior` and `response behavior`.
+- Non-safe teaching requests are rejected and logged in `learning_registry` with status `rejected`.
+
+Show the built-in learning rules summary:
+
+```powershell
+ads-agent chat --machine Machine1 --prompt "Show learning rules"
+```
+
+Full rule reference:
+
+- `docs/learning-rules.md`
+
+### 8.10 Project-local maintainer skills
+
+Project-local skills are available under `.codex/skills` and discovered through `AGENTS.md`:
+
+- `readme-maintainer`: updates `README.md`
+- `usage-maintainer`: updates `USAGE.md`
+- `changelog-maintainer`: updates `CHANGELOG.md`
+- `work-history-maintainer`: appends to `docs/history/session-log.md`
+
+These maintainer skills are implementation-first and directly apply file updates.
 
 ## 9. List Exposed Tools
 
@@ -249,7 +290,6 @@ python -m cli.main diagnose-model
 python -m cli.main model-chat --prompt "Reply with one short sentence"
 python -m cli.main diagnose-mcp --machine Machine1
 python -m cli.main chat --machine Machine1 --prompt "What is the machine state?"
-python -m cli.main chat --machine Machine1 --prompt "What is the machine state?" --show-timing
 ```
 
 ## 11. Common Errors and Fixes

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import tempfile
+
 from config.settings import Settings
 
 
@@ -10,4 +12,5 @@ def sample_settings() -> Settings:
     settings.model_name = "qwen3:8b"
     settings.max_tool_steps = 4
     settings.max_tool_failures = 2
+    settings.teaching_store_dir = tempfile.mkdtemp(prefix="ads-agent-teaching-tests-")
     return settings

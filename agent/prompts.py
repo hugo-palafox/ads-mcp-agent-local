@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+from agent.teaching import (
+    ResponseBehaviorRule,
+    StateRule,
+    format_response_rules_for_prompt,
+    format_state_rules_for_prompt,
+)
+
 
 SYSTEM_PROMPT = """You are a safety-first industrial assistant for ADS-backed machine data.
 
@@ -26,11 +33,20 @@ Rules:
   2) ads-mcp discover --machine <id>
   3) ads-mcp memory add-tag --machine <id> --tag <exact_tag> --alias <alias>
   4) ads-agent diagnose-mcp --machine <id>
-  5) ads-agent chat --machine <id> --prompt "Read all memory tags and summarize them" --show-tool-trace
+  5) ads-agent chat --machine <id> --prompt "Read all memory tags and summarize them" --show-timing --show-tool-trace
 """
 
 
-def build_system_prompt(machine_id: str | None = None) -> str:
-    if not machine_id:
-        return SYSTEM_PROMPT
-    return f"{SYSTEM_PROMPT}\nCurrent machine context: {machine_id}."
+def build_system_prompt(
+    machine_id: str | None = None,
+    learned_state_rules: list[StateRule] | None = None,
+    learned_response_rules: list[ResponseBehaviorRule] | None = None,
+) -> str:
+    parts = [SYSTEM_PROMPT]
+    if machine_id:
+        parts.append(f"Current machine context: {machine_id}.")
+    if learned_state_rules:
+        parts.append(format_state_rules_for_prompt(learned_state_rules))
+    if learned_response_rules:
+        parts.append(format_response_rules_for_prompt(learned_response_rules))
+    return "\n".join(parts)

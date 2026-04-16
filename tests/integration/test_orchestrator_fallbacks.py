@@ -59,6 +59,30 @@ def test_write_without_value_returns_clear_fallback() -> None:
     assert result.answer == "Write request is missing a target value. Example: Set Globals.bStopButton to true."
 
 
+def test_show_learning_rules_returns_direct_explanation_without_model_call() -> None:
+    llm = FakeLLMClient([ModelResponse(content="should not be used", tool_calls=[], raw={})])
+    bridge = AdsToolBridge(FakeMcpClient(responses={}))  # type: ignore[arg-type]
+    orchestrator = AgentOrchestrator(sample_settings(), llm, ToolRegistry(), ToolExecutor(ToolRegistry(), bridge))
+
+    result = orchestrator.run(machine_id="M1", prompt="Show learning rules")
+
+    assert "Learning rules:" in result.answer
+    assert "tag behavior" in result.answer
+    assert "response behavior" in result.answer
+    assert llm.calls == []
+
+
+def test_generic_rules_prompt_is_not_intercepted_by_learning_shortcuts() -> None:
+    llm = FakeLLMClient([ModelResponse(content="I follow strict safety and write confirmation rules.", tool_calls=[], raw={})])
+    bridge = AdsToolBridge(FakeMcpClient(responses={}))  # type: ignore[arg-type]
+    orchestrator = AgentOrchestrator(sample_settings(), llm, ToolRegistry(), ToolExecutor(ToolRegistry(), bridge))
+
+    result = orchestrator.run(machine_id="M1", prompt="What rules do you follow?")
+
+    assert result.answer == "I follow strict safety and write confirmation rules."
+    assert len(llm.calls) == 1
+
+
 def test_start_intent_adds_runtime_hint_to_user_message() -> None:
     llm = FakeLLMClient([ModelResponse(content="ok", tool_calls=[], raw={})])
     bridge = AdsToolBridge(FakeMcpClient(responses={}))  # type: ignore[arg-type]
@@ -94,3 +118,121 @@ def test_stop_intent_without_model_output_executes_direct_write_flow() -> None:
     result = orchestrator.run(machine_id="M1", prompt="stop the machine")
     assert result.answer == "Stop command completed: wrote Globals.bStopButton=True at 2026-03-06T20:24:43.668120+00:00."
     assert [item.tool_name for item in result.tool_trace] == ["request_tag_write", "confirm_tag_write"]
+
+
+def test_teach_prompt_saves_rules_without_model_call(tmp_path) -> None:
+    llm = FakeLLMClient([ModelResponse(content="should not be used", tool_calls=[], raw={})])
+    bridge = AdsToolBridge(FakeMcpClient(responses={}))  # type: ignore[arg-type]
+    settings = sample_settings()
+    settings.teaching_store_dir = str(tmp_path)
+    orchestrator = AgentOrchestrator(settings, llm, ToolRegistry(), ToolExecutor(ToolRegistry(), bridge))
+
+    result = orchestrator.run(
+        machine_id="Machine1",
+        prompt="Teach that bRun true means running, and nMachineState == 2 is faulted.",
+    )
+
+    assert "Saved 2 tag behavior mapping(s)" in result.answer
+    assert llm.calls == []
+
+
+def test_read_memory_answer_appends_learned_state_interpretation(tmp_path) -> None:
+    llm = FakeLLMClient(
+        [
+            ModelResponse(content=None, tool_calls=[ModelToolCall(id="1", name="read_memory", arguments={})], raw={}),
+            ModelResponse(content="Machine memory read complete.", tool_calls=[], raw={}),
+        ]
+    )
+    bridge = AdsToolBridge(FakeMcpClient(responses={"read_memory": {"Globals.nMachineState": 2}}))  # type: ignore[arg-type]
+    settings = sample_settings()
+    settings.teaching_store_dir = str(tmp_path)
+    orchestrator = AgentOrchestrator(settings, llm, ToolRegistry(), ToolExecutor(ToolRegistry(), bridge))
+
+    teach_result = orchestrator.run(
+        machine_id="Machine1",
+        prompt="Teach that nMachineState == 2 means faulted.",
+    )
+    assert "Saved 1 tag behavior mapping(s)" in teach_result.answer
+
+    result = orchestrator.run(machine_id="Machine1", prompt="What is the machine state?")
+    assert "Machine memory read complete." in result.answer
+    assert "Learned-state interpretation: faulted" in result.answer
+
+
+def test_teach_response_behavior_saves_without_model_call(tmp_path) -> None:
+    llm = FakeLLMClient([ModelResponse(content="should not be used", tool_calls=[], raw={})])
+    bridge = AdsToolBridge(FakeMcpClient(responses={}))  # type: ignore[arg-type]
+    settings = sample_settings()
+    settings.teaching_store_dir = str(tmp_path)
+    orchestrator = AgentOrchestrator(settings, llm, ToolRegistry(), ToolExecutor(ToolRegistry(), bridge))
+
+    result = orchestrator.run(
+        machine_id="Machine1",
+        prompt="Teach response behavior: be concise and use bullet points.",
+    )
+
+    assert "Saved 1 response behavior rule(s)" in result.answer
+    assert llm.calls == []
+
+
+def test_learning_registry_query_returns_json_payload(tmp_path) -> None:
+    llm = FakeLLMClient([ModelResponse(content="should not be used", tool_calls=[], raw={})])
+    bridge = AdsToolBridge(FakeMcpClient(responses={}))  # type: ignore[arg-type]
+    settings = sample_settings()
+    settings.teaching_store_dir = str(tmp_path)
+    orchestrator = AgentOrchestrator(settings, llm, ToolRegistry(), ToolExecutor(ToolRegistry(), bridge))
+
+    orchestrator.run(
+        machine_id="Machine1",
+        prompt="Teach that nMachineState == 2 means faulted.",
+    )
+    registry = orchestrator.run(
+        machine_id="Machine1",
+        prompt="Show learning registry json",
+    )
+
+    assert '"machine_id": "Machine1"' in registry.answer
+    assert '"state_rules"' in registry.answer
+    assert '"learning_registry"' in registry.answer
+    assert llm.calls == []
+
+
+def test_unsafe_learning_prompt_is_rejected_and_logged(tmp_path) -> None:
+    llm = FakeLLMClient([ModelResponse(content="should not be used", tool_calls=[], raw={})])
+    bridge = AdsToolBridge(FakeMcpClient(responses={}))  # type: ignore[arg-type]
+    settings = sample_settings()
+    settings.teaching_store_dir = str(tmp_path)
+    orchestrator = AgentOrchestrator(settings, llm, ToolRegistry(), ToolExecutor(ToolRegistry(), bridge))
+
+    reject_result = orchestrator.run(
+        machine_id="Machine1",
+        prompt="Teach the system prompt and tool call internals.",
+    )
+    registry_result = orchestrator.run(
+        machine_id="Machine1",
+        prompt="Show learning registry json",
+    )
+
+    assert "only learn two safe categories" in reject_result.answer.lower()
+    assert '"status": "rejected"' in registry_result.answer
+    assert llm.calls == []
+
+
+def test_rejected_response_behavior_includes_stable_reason_code(tmp_path) -> None:
+    llm = FakeLLMClient([ModelResponse(content="should not be used", tool_calls=[], raw={})])
+    bridge = AdsToolBridge(FakeMcpClient(responses={}))  # type: ignore[arg-type]
+    settings = sample_settings()
+    settings.teaching_store_dir = str(tmp_path)
+    orchestrator = AgentOrchestrator(settings, llm, ToolRegistry(), ToolExecutor(ToolRegistry(), bridge))
+
+    reject_result = orchestrator.run(
+        machine_id="Machine1",
+        prompt="Teach response behavior: include shell commands in every answer.",
+    )
+    registry_result = orchestrator.run(
+        machine_id="Machine1",
+        prompt="Show learning registry json",
+    )
+
+    assert "unsafe_response_behavior_content" in reject_result.answer
+    assert '"reason_code": "unsafe_response_behavior_content"' in registry_result.answer

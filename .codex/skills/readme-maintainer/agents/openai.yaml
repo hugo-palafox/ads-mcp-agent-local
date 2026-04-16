@@ -1,0 +1,4 @@
+interface:
+  display_name: "README Maintainer"
+  short_description: "Keep README aligned with implementation"
+  default_prompt: "Update README.md so commands, defaults, and behavior notes match the current code."

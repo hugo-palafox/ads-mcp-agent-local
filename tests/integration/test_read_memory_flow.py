@@ -32,6 +32,27 @@ def test_read_memory_flow() -> None:
     assert result.tool_trace[0].output["Globals.bRun"] is True
 
 
+def test_read_memory_flow_overrides_model_machine_id_with_runtime_machine_context() -> None:
+    llm = FakeLLMClient(
+        [
+            ModelResponse(
+                content=None,
+                tool_calls=[ModelToolCall(id="1", name="read_memory", arguments={"machine_id": "M1"})],
+                raw={},
+            ),
+            ModelResponse(content="Machine summary grounded in memory.", tool_calls=[], raw={}),
+        ]
+    )
+    fake_client = FakeMcpClient(responses={"read_memory": {"Globals.bRun": True}})  # type: ignore[arg-type]
+    bridge = AdsToolBridge(fake_client)
+    orchestrator = AgentOrchestrator(sample_settings(), llm, ToolRegistry(), ToolExecutor(ToolRegistry(), bridge))
+
+    result = orchestrator.run(machine_id="Machine1", prompt="What is the machine state?")
+
+    assert result.answer == "Machine summary grounded in memory."
+    assert fake_client.calls[0] == ("read_memory", {"machine_id": "Machine1"})
+
+
 def test_read_memory_flow_empty_final_content_has_clear_fallback() -> None:
     llm = FakeLLMClient(
         [

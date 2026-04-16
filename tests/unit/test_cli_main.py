@@ -40,7 +40,8 @@ def test_model_chat_returns_plain_model_output(monkeypatch, capsys) -> None:
     exit_code = cli_main.main(["model-chat", "--prompt", "Hello"])
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert captured.out.strip() == "Direct model reply."
+    assert "Direct model reply." in captured.out
+    assert "Response time:" in captured.out
     assert captured.err == ""
 
 
@@ -109,6 +110,24 @@ def test_chat_show_timing_prints_elapsed_seconds(monkeypatch, capsys) -> None:
     assert "Machine is running." in captured.out
     assert "Response time: 1.500s" in captured.out
     assert captured.err == ""
+
+
+def test_model_chat_hide_timing_suppresses_elapsed_seconds(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(cli_main, "LLMClient", _FakeLLMClient)
+    exit_code = cli_main.main(["model-chat", "--prompt", "Hello", "--hide-timing"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Direct model reply." in captured.out
+    assert "Response time:" not in captured.out
+
+
+def test_chat_hide_timing_suppresses_elapsed_seconds(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(cli_main, "build_orchestrator", lambda settings, write_confirmer=None: _FakeGoodOrchestrator())
+    exit_code = cli_main.main(["chat", "--machine", "Machine1", "--prompt", "status", "--hide-timing"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Machine is running." in captured.out
+    assert "Response time:" not in captured.out
 
 
 def test_chat_show_tool_trace_pretty_prints_human_readable_output(monkeypatch, capsys) -> None:

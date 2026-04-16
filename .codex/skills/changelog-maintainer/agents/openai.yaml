@@ -1,0 +1,4 @@
+interface:
+  display_name: "Changelog Maintainer"
+  short_description: "Write versioned release notes"
+  default_prompt: "Update CHANGELOG.md with a new top entry summarizing implemented changes."

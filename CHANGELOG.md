@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 0.3.0 - 2026-04-16
+
+### Added
+- Added structured learning registry metadata (`registry_metadata`) and per-event diagnostics (`reason_code`, `source_prompt_excerpt`, `metadata`) while preserving existing registry keys.
+- Added four project-local maintainer skills under `.codex/skills`: `readme-maintainer`, `usage-maintainer`, `changelog-maintainer`, and `work-history-maintainer`.
+- Added repository skill discovery and trigger guidance via `AGENTS.md`.
+- Added persistent implementation session history file: `docs/history/session-log.md`.
+
+### Changed
+- Changed teaching-path responses to a standardized learning summary format with accepted/rejected counts.
+- Changed rejection handling to include stable reason codes and clearer user-facing rejection messages.
+- Changed learning query classifiers to reduce false interception of non-learning prompts.
+
+### Fixed
+- Fixed learning shortcut false positives where generic prompts about rules could bypass normal model/orchestration flow.
+- Fixed registry event normalization so legacy event shapes remain readable while new metadata is captured for QA/debugging.
+
+### Removed
+- N/A
+
+### Notes
+- Learning categories remain constrained to `tag_behavior` and `response_behavior`.
+- Maintainer skills are implementation-first and directly edit target docs/history files.
+
 ## 0.2.0 - 2026-03-06
 
 ### Added

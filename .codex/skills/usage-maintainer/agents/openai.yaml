@@ -1,0 +1,4 @@
+interface:
+  display_name: "USAGE Maintainer"
+  short_description: "Keep USAGE.md runbook current"
+  default_prompt: "Update USAGE.md so CLI commands, defaults, and troubleshooting match the current implementation."

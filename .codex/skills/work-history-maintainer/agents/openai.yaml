@@ -1,0 +1,4 @@
+interface:
+  display_name: "Work History Maintainer"
+  short_description: "Append session implementation history"
+  default_prompt: "Append a new session entry to docs/history/session-log.md capturing request, implementation, and verification."

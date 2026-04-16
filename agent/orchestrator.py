@@ -7,6 +7,25 @@ from typing import Any, Callable
 from agent.conversation import Conversation
 from agent.models import AgentRunResult
 from agent.prompts import build_system_prompt
+from agent.teaching import (
+    LearningRejection,
+    ResponseBehaviorRule,
+    StateRule,
+    TeachingStore,
+    evaluate_response_behavior_rule,
+    format_response_rules_for_user,
+    format_state_rules_for_user,
+    interpret_state_from_memory,
+    learning_guardrail_message,
+    learning_rules_for_user,
+    looks_like_learning_intent,
+    looks_like_learning_registry_query,
+    looks_like_learning_rules_query,
+    looks_like_response_behavior_query,
+    looks_like_state_rule_query,
+    parse_response_behavior_prompt,
+    parse_teaching_prompt,
+)
 from agent.tool_executor import ToolExecutor
 from agent.tool_registry import ToolRegistry
 from config.settings import Settings
@@ -27,9 +46,22 @@ class AgentOrchestrator:
         self.tool_registry = tool_registry
         self.tool_executor = tool_executor
         self.write_confirmer = write_confirmer
+        self.teaching_store = TeachingStore(settings.teaching_store_dir)
 
     def run(self, *, machine_id: str, prompt: str) -> AgentRunResult:
-        conversation = Conversation(build_system_prompt(machine_id))
+        learned_state_rules = self.teaching_store.list_state_rules(machine_id)
+        learned_response_rules = self.teaching_store.list_response_rules(machine_id)
+        conversation = Conversation(build_system_prompt(machine_id, learned_state_rules, learned_response_rules))
+        teaching_result = self._attempt_teaching_prompt(
+            machine_id=machine_id,
+            prompt=prompt,
+            conversation=conversation,
+            learned_state_rules=learned_state_rules,
+            learned_response_rules=learned_response_rules,
+        )
+        if teaching_result is not None:
+            return teaching_result
+
         enriched_prompt = self._augment_prompt_with_intent_hints(prompt)
         conversation.add_user(enriched_prompt)
         tool_trace = []
@@ -59,6 +91,12 @@ class AgentOrchestrator:
                     if direct_intent_result is not None:
                         return direct_intent_result
                 answer = response.content or self._fallback_answer_for_empty_content(tool_trace, prompt)
+                answer = self._append_learned_state_interpretation(
+                    answer=answer,
+                    prompt=prompt,
+                    tool_trace=tool_trace,
+                    learned_state_rules=learned_state_rules,
+                )
                 return AgentRunResult(
                     answer=answer,
                     messages=conversation.messages,
@@ -68,7 +106,9 @@ class AgentOrchestrator:
 
             for tool_call in response.tool_calls:
                 arguments = dict(tool_call.arguments)
-                arguments.setdefault("machine_id", machine_id)
+                # Keep tool execution bound to the CLI-selected machine context,
+                # even if the model emits a different machine_id (for example "M1").
+                arguments["machine_id"] = machine_id
                 result = self.tool_executor.execute(tool_call.name, arguments)
                 tool_trace.append(result)
                 conversation.add_tool_result(tool_call.id, tool_call.name, result.to_message_payload())
@@ -124,6 +164,163 @@ class AgentOrchestrator:
             tool_trace=tool_trace,
             iterations=self.settings.max_tool_steps,
         )
+
+    def _attempt_teaching_prompt(
+        self,
+        *,
+        machine_id: str,
+        prompt: str,
+        conversation: Conversation,
+        learned_state_rules: list[StateRule],
+        learned_response_rules: list[ResponseBehaviorRule],
+    ) -> AgentRunResult | None:
+        if looks_like_learning_rules_query(prompt):
+            conversation.add_user(prompt)
+            answer = learning_rules_for_user()
+            conversation.add_assistant(answer)
+            return AgentRunResult(answer=answer, messages=conversation.messages, tool_trace=[], iterations=0)
+
+        if looks_like_learning_registry_query(prompt):
+            conversation.add_user(prompt)
+            answer = self.teaching_store.format_registry_json(machine_id)
+            conversation.add_assistant(answer)
+            return AgentRunResult(answer=answer, messages=conversation.messages, tool_trace=[], iterations=0)
+
+        parsed_state_rules = parse_teaching_prompt(prompt)
+        parsed_response_rules = parse_response_behavior_prompt(prompt)
+        accepted_response_rules: list[ResponseBehaviorRule] = []
+        rejected_response_rejections: list[LearningRejection] = []
+        for rule in parsed_response_rules:
+            rejection = evaluate_response_behavior_rule(rule)
+            if rejection is not None:
+                rejected_response_rejections.append(rejection)
+                continue
+            accepted_response_rules.append(rule)
+
+        if parsed_state_rules or parsed_response_rules:
+            conversation.add_user(prompt)
+            answer_parts: list[str] = []
+            answer_parts.append(
+                f"Learning summary for {machine_id}: "
+                f"accepted_tag_behavior={len(parsed_state_rules)}, "
+                f"accepted_response_behavior={len(accepted_response_rules)}, "
+                f"rejected_response_behavior={len(rejected_response_rejections)}."
+            )
+
+            merged_state_rules = learned_state_rules
+            if parsed_state_rules:
+                added_state, updated_state, merged_state_rules = self.teaching_store.upsert_state_rules(machine_id, parsed_state_rules)
+                detail = (
+                    f"Saved {len(parsed_state_rules)} tag behavior mapping(s) "
+                    f"(added={added_state}, updated={updated_state})."
+                )
+                self.teaching_store.record_learning_event(
+                    machine_id,
+                    category="tag_behavior",
+                    status="accepted",
+                    source_prompt=prompt,
+                    detail=detail,
+                    reason_code="accepted_tag_behavior",
+                    metadata={
+                        "parsed_state_rules": len(parsed_state_rules),
+                        "added": added_state,
+                        "updated": updated_state,
+                    },
+                )
+                answer_parts.append(detail)
+
+            merged_response_rules = learned_response_rules
+            if accepted_response_rules:
+                added_response, updated_response, merged_response_rules = self.teaching_store.upsert_response_rules(
+                    machine_id,
+                    accepted_response_rules,
+                )
+                detail = (
+                    f"Saved {len(accepted_response_rules)} response behavior rule(s) "
+                    f"(added={added_response}, updated={updated_response})."
+                )
+                self.teaching_store.record_learning_event(
+                    machine_id,
+                    category="response_behavior",
+                    status="accepted",
+                    source_prompt=prompt,
+                    detail=detail,
+                    reason_code="accepted_response_behavior",
+                    metadata={
+                        "parsed_response_rules": len(parsed_response_rules),
+                        "accepted_response_rules": len(accepted_response_rules),
+                        "added": added_response,
+                        "updated": updated_response,
+                    },
+                )
+                answer_parts.append(detail)
+
+            if rejected_response_rejections:
+                first_rejection = rejected_response_rejections[0]
+                rejection_detail = (
+                    f"Rejected {len(rejected_response_rejections)} response behavior rule(s). "
+                    f"First reason [{first_rejection.reason_code}]: {first_rejection.message}"
+                )
+                self.teaching_store.record_learning_event(
+                    machine_id,
+                    category="response_behavior",
+                    status="rejected",
+                    source_prompt=prompt,
+                    detail=rejection_detail,
+                    reason_code=first_rejection.reason_code,
+                    metadata={
+                        "parsed_response_rules": len(parsed_response_rules),
+                        "rejected_response_rules": len(rejected_response_rejections),
+                    },
+                )
+                answer_parts.append(rejection_detail)
+
+            if parsed_state_rules:
+                answer_parts.append(format_state_rules_for_user(merged_state_rules))
+            if accepted_response_rules:
+                answer_parts.append(format_response_rules_for_user(merged_response_rules))
+
+            answer = " ".join(answer_parts)
+            conversation.add_assistant(answer)
+            return AgentRunResult(answer=answer, messages=conversation.messages, tool_trace=[], iterations=0)
+
+        if looks_like_learning_intent(prompt):
+            conversation.add_user(prompt)
+            detail = learning_guardrail_message()
+            reason_code = "unsupported_learning_intent"
+            self.teaching_store.record_learning_event(
+                machine_id,
+                category="unknown",
+                status="rejected",
+                source_prompt=prompt,
+                detail=detail,
+                reason_code=reason_code,
+                metadata={
+                    "parsed_state_rules": 0,
+                    "parsed_response_rules": 0,
+                },
+            )
+            answer = (
+                f"Learning rejected [{reason_code}]: {detail} "
+                "Example tag behavior: 'Teach that nMachineState == 2 means faulted.' "
+                "Example response behavior: 'Teach response behavior: be concise and use bullets.'"
+            )
+            conversation.add_assistant(answer)
+            return AgentRunResult(answer=answer, messages=conversation.messages, tool_trace=[], iterations=0)
+
+        if looks_like_response_behavior_query(prompt):
+            conversation.add_user(prompt)
+            answer = format_response_rules_for_user(learned_response_rules)
+            conversation.add_assistant(answer)
+            return AgentRunResult(answer=answer, messages=conversation.messages, tool_trace=[], iterations=0)
+
+        if looks_like_state_rule_query(prompt):
+            conversation.add_user(prompt)
+            answer = format_state_rules_for_user(learned_state_rules)
+            conversation.add_assistant(answer)
+            return AgentRunResult(answer=answer, messages=conversation.messages, tool_trace=[], iterations=0)
+
+        return None
 
     def _fallback_answer_for_empty_content(self, tool_trace: list, user_prompt: str) -> str:
         if not tool_trace:
@@ -185,6 +382,37 @@ class AgentOrchestrator:
             "Model returned no final text. "
             "Tool summary: " + ", ".join(parts) + "."
         )
+
+    def _append_learned_state_interpretation(
+        self,
+        *,
+        answer: str,
+        prompt: str,
+        tool_trace: list,
+        learned_state_rules: list[StateRule],
+    ) -> str:
+        if not learned_state_rules:
+            return answer
+        if not self._looks_like_state_summary_prompt(prompt):
+            return answer
+        memory = self._latest_read_memory_output(tool_trace)
+        if memory is None:
+            return answer
+        interpretation = interpret_state_from_memory(memory, learned_state_rules)
+        if not interpretation:
+            return answer
+        suffix = f"Learned-state interpretation: {interpretation}."
+        if suffix.lower() in answer.lower():
+            return answer
+        if answer.endswith("."):
+            return f"{answer} {suffix}"
+        return f"{answer}. {suffix}"
+
+    def _latest_read_memory_output(self, tool_trace: list) -> dict[str, Any] | None:
+        for item in reversed(tool_trace):
+            if item.ok and item.tool_name == "read_memory" and isinstance(item.output, dict):
+                return item.output
+        return None
 
     def _attempt_direct_machine_command(
         self,
@@ -333,6 +561,18 @@ class AgentOrchestrator:
         if re.search(r"\b(to\s+)?(true|false|on|off|0|1)\b", low):
             return False
         return True
+
+    def _looks_like_state_summary_prompt(self, prompt: str) -> bool:
+        low = prompt.lower()
+        if "what is the machine state" in low:
+            return True
+        if "machine state" in low:
+            return True
+        if "summarize" in low and "memory" in low:
+            return True
+        if "running or faulted" in low:
+            return True
+        return False
 
     def _extract_pending_request(self, output: Any, arguments: dict[str, Any]) -> dict[str, Any] | None:
         if not isinstance(output, dict):

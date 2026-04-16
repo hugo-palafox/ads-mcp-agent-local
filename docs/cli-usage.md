@@ -7,15 +7,13 @@ ads-agent tools list
 ads-agent diagnose-model
 ads-agent diagnose-model --timeout-seconds 120
 ads-agent model-chat --prompt "Reply with one short sentence"
-ads-agent model-chat --prompt "Reply with one short sentence" --show-timing
 ads-agent diagnose-mcp --machine Machine1
 ads-agent chat --machine Machine1 --prompt "What is the machine state?"
-ads-agent chat --machine Machine1 --prompt "What is the machine state?" --show-timing
 ads-agent chat --machine Machine1 --prompt "What is the machine state?" --timeout-seconds 120
 ads-agent chat --machine Machine1 --prompt "Read all memory tags and summarize them" --show-tool-trace
 ads-agent chat --machine Machine1 --prompt "Read all memory tags and summarize them" --show-tool-trace --tool-trace-format pretty
-ads-agent chat --machine Machine1 --prompt "Start Machine" --show-tool-trace --tool-trace-format pretty --show-timing
-ads-agent chat --machine Machine1 --prompt "Stop Machine" --show-tool-trace --tool-trace-format pretty --show-timing
+ads-agent chat --machine Machine1 --prompt "Start Machine" --show-tool-trace --tool-trace-format pretty
+ads-agent chat --machine Machine1 --prompt "Stop Machine" --show-tool-trace --tool-trace-format pretty
 ads-agent chat --machine Machine1 --prompt "Is the machine running or faulted?" --debug
 ```
 
@@ -28,7 +26,8 @@ ads-agent chat --machine Machine1 --prompt "Is the machine running or faulted?" 
 - `--model`: overrides `ADS_AGENT_MODEL_NAME`
 - `--base-url`: overrides `ADS_AGENT_MODEL_BASE_URL`
 - `--timeout-seconds`: overrides `ADS_AGENT_TIMEOUT_SECONDS` for the current command
-- `--show-timing`: prints end-to-end response time in seconds
+- `--show-timing`: explicitly keeps timing output on (default behavior)
+- `--hide-timing`: hides end-to-end response time output
 
 ## Output interpretation
 

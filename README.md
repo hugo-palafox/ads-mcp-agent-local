@@ -35,6 +35,7 @@ Environment variables:
 - `ADS_AGENT_DEBUG` default `false`
 - `ADS_AGENT_MCP_SERVER_REPO` default `/mnt/c/Users/hugod/source/repos/ads-mcp-server`
 - `ADS_AGENT_MCP_TRANSPORT` default `inprocess`
+- `ADS_AGENT_TEACHING_STORE_DIR` default `~/.ads-agent/teachings`
 
 ## Local usage
 
@@ -45,16 +46,33 @@ ads-agent diagnose-model
 ads-agent diagnose-model --timeout-seconds 120
 
 ads-agent model-chat --prompt "Reply with one sentence"
-ads-agent model-chat --prompt "Reply with one sentence" --show-timing
 
 ads-agent diagnose-mcp --machine Machine1
 ads-agent chat --machine Machine1 --prompt "What is the machine state?"
+ads-agent chat --machine Machine1 --prompt "Teach that bRun true means running, and nMachineState == 1 is running, ==2 faulted, ==3 stopped"
+ads-agent chat --machine Machine1 --prompt "Teach response behavior: be concise and use bullet points"
+ads-agent chat --machine Machine1 --prompt "Show learned state mappings"
+ads-agent chat --machine Machine1 --prompt "Show learning registry json"
 ads-agent chat --machine Machine1 --prompt "What is the machine state?" --timeout-seconds 120
 ads-agent chat --machine Machine1 --prompt "Read all memory tags and summarize them" --show-tool-trace
 ads-agent chat --machine Machine1 --prompt "Set Main.startButton to true" --show-tool-trace
 ```
 
+Timing is printed by default after each `chat` and `model-chat` response. Use `--hide-timing` to suppress it.
+
 For full setup and run instructions, see `USAGE.md`.
+For learning feature rules and examples, see [`docs/learning-rules.md`](docs/learning-rules.md).
+
+## Project-local maintainer skills
+
+This repository includes project-local skills in `.codex/skills` and discovery rules in `AGENTS.md`:
+
+- `readme-maintainer`
+- `usage-maintainer`
+- `changelog-maintainer`
+- `work-history-maintainer`
+
+These skills are implementation-first and directly update their target files.
 
 ## Design notes
 
@@ -64,9 +82,11 @@ For full setup and run instructions, see `USAGE.md`.
 - Local tool-enabled model calls can take longer than trivial diagnostics, so the CLI supports `--timeout-seconds` and now defaults to 90 seconds.
 - Phase 2 still uses an in-process transport for local reliability and simple testing.
 - The rest of the agent is transport-agnostic and can later move to a networked MCP client without rewriting the tool loop.
+- Learning guardrail: the agent only learns safe `tag behavior` mappings and `response behavior` preferences, with accepted/rejected learning recorded in machine JSON.
 
 
 ads-agent chat --machine Machine1 --prompt "Read all memory tags and summarize them" --show-timing --show-tool-trace --tool-trace-format pretty
 ads-agent chat --machine Machine1 --prompt "What is the machine state?" --show-timing --show-tool-trace --tool-trace-format pretty
 ads-agent chat --machine Machine1 --prompt "Start Machine" --show-timing --show-tool-trace --tool-trace-format pretty
 ads-agent chat --machine Machine1 --prompt "Stop Machine" --show-timing --show-tool-trace --tool-trace-format pretty
+ads-agent chat --machine Machine1 --prompt "Show learning rules"

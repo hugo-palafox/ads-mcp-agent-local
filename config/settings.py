@@ -20,6 +20,7 @@ class Settings:
     max_tool_failures: int = defaults.DEFAULT_MAX_TOOL_FAILURES
     ads_mcp_server_repo: str = defaults.DEFAULT_ADS_MCP_SERVER_REPO
     ads_mcp_transport: str = defaults.DEFAULT_ADS_MCP_TRANSPORT
+    teaching_store_dir: str = defaults.DEFAULT_TEACHING_STORE_DIR
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -36,6 +37,7 @@ class Settings:
             max_tool_failures=int(os.getenv("ADS_AGENT_MAX_TOOL_FAILURES", defaults.DEFAULT_MAX_TOOL_FAILURES)),
             ads_mcp_server_repo=_normalize_server_repo(raw_server_repo),
             ads_mcp_transport=os.getenv("ADS_AGENT_MCP_TRANSPORT", defaults.DEFAULT_ADS_MCP_TRANSPORT),
+            teaching_store_dir=os.getenv("ADS_AGENT_TEACHING_STORE_DIR", defaults.DEFAULT_TEACHING_STORE_DIR),
         )
 
 
