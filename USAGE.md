@@ -75,6 +75,7 @@ The project reads these environment variables:
 - `ADS_AGENT_DEBUG` default `false`
 - `ADS_AGENT_MCP_SERVER_REPO` default `/mnt/c/Users/hugod/source/repos/ads-mcp-server`
 - `ADS_AGENT_MCP_TRANSPORT` default `inprocess`
+- `ADS_AGENT_TEACHING_STORE_DIR` default `~/.ads-agent/teachings`
 
 ## 6. Set Environment Variables in PowerShell
 

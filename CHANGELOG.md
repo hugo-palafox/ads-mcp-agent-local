@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 0.3.1 - 2026-04-16
+
+### Added
+- Added `*.egg-info/`, build, and dist ignore rules so generated packaging artifacts stay out of source control.
+- Added explicit learning-query examples (`Show learning rules`, `Show learning registry json`) in `docs/cli-usage.md`.
+
+### Changed
+- Changed README quick demo commands to a single fenced block and removed redundant `--show-timing` flags from default timing examples.
+- Changed usage/docs wording to consistently describe timing as default-on with `--hide-timing` override.
+
+### Fixed
+- Fixed repository hygiene by removing tracked `ads_mcp_agent_local.egg-info/*` files from git while preserving local generation behavior.
+- Fixed cross-document consistency across `README.md`, `USAGE.md`, `docs/cli-usage.md`, and `docs/learning-rules.md`.
+
+### Removed
+- Removed tracked `ads_mcp_agent_local.egg-info/*` metadata files from the repository index.
+
+### Notes
+- This is a cleanup-only patch release; no runtime behavior changes were introduced.
+
 ## 0.3.0 - 2026-04-16
 
 ### Added

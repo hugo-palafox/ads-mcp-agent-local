@@ -12,6 +12,8 @@ ads-agent chat --machine Machine1 --prompt "What is the machine state?"
 ads-agent chat --machine Machine1 --prompt "What is the machine state?" --timeout-seconds 120
 ads-agent chat --machine Machine1 --prompt "Read all memory tags and summarize them" --show-tool-trace
 ads-agent chat --machine Machine1 --prompt "Read all memory tags and summarize them" --show-tool-trace --tool-trace-format pretty
+ads-agent chat --machine Machine1 --prompt "Show learning rules"
+ads-agent chat --machine Machine1 --prompt "Show learning registry json"
 ads-agent chat --machine Machine1 --prompt "Start Machine" --show-tool-trace --tool-trace-format pretty
 ads-agent chat --machine Machine1 --prompt "Stop Machine" --show-tool-trace --tool-trace-format pretty
 ads-agent chat --machine Machine1 --prompt "Is the machine running or faulted?" --debug
@@ -32,5 +34,6 @@ ads-agent chat --machine Machine1 --prompt "Is the machine running or faulted?" 
 ## Output interpretation
 
 - Standard output prints the final answer first.
+- Response timing is printed by default for `chat` and `model-chat`; use `--hide-timing` to suppress it.
 - Tool traces are emitted as JSON objects with `ok`, `tool_name`, `arguments`, and either `result` or `error`.
 - Runtime failures such as model timeouts are printed as `ERROR: ...` on stderr without a Python traceback.

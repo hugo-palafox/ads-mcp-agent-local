@@ -1,5 +1,12 @@
 # Session Log
 
+## 2026-04-16 12:35 MST - Cleanup 0.3.1 docs and repo hygiene
+- Request: Execute comprehensive cleanup (repo hygiene, docs normalization, and patch release note) without changing runtime behavior.
+- Plan: Ignore and untrack generated egg-info artifacts, normalize timing/learning command docs, and record a patch changelog + history entry.
+- Implemented: Added `.gitignore` rules for packaging artifacts, untracked `ads_mcp_agent_local.egg-info/*`, normalized README/USAGE/docs command guidance, and added `CHANGELOG.md` 0.3.1 section.
+- Verification: `python -m pytest -q` passed (78 passed), all four skill validators passed, and grep checks confirmed timing + learning-query consistency across docs.
+- Risks/Follow-ups: Regenerated local `egg-info` may still appear untracked after packaging commands; this is expected and now ignored.
+
 ## 2026-04-16 00:00 MST - Learning Polish and Auto-Maintainer Skills
 - Request: Implement auto-apply learning polish and add maintainer/history skills with direct file updates.
 - Plan: Harden learning classification/guardrails/registry diagnostics, add project-local skills + AGENTS discovery, and validate with tests.

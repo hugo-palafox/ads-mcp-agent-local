@@ -84,9 +84,12 @@ These skills are implementation-first and directly update their target files.
 - The rest of the agent is transport-agnostic and can later move to a networked MCP client without rewriting the tool loop.
 - Learning guardrail: the agent only learns safe `tag behavior` mappings and `response behavior` preferences, with accepted/rejected learning recorded in machine JSON.
 
+## Quick demo commands
 
-ads-agent chat --machine Machine1 --prompt "Read all memory tags and summarize them" --show-timing --show-tool-trace --tool-trace-format pretty
-ads-agent chat --machine Machine1 --prompt "What is the machine state?" --show-timing --show-tool-trace --tool-trace-format pretty
-ads-agent chat --machine Machine1 --prompt "Start Machine" --show-timing --show-tool-trace --tool-trace-format pretty
-ads-agent chat --machine Machine1 --prompt "Stop Machine" --show-timing --show-tool-trace --tool-trace-format pretty
+```powershell
+ads-agent chat --machine Machine1 --prompt "Read all memory tags and summarize them" --show-tool-trace --tool-trace-format pretty
+ads-agent chat --machine Machine1 --prompt "What is the machine state?" --show-tool-trace --tool-trace-format pretty
+ads-agent chat --machine Machine1 --prompt "Start Machine" --show-tool-trace --tool-trace-format pretty
+ads-agent chat --machine Machine1 --prompt "Stop Machine" --show-tool-trace --tool-trace-format pretty
 ads-agent chat --machine Machine1 --prompt "Show learning rules"
+```

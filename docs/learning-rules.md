@@ -58,6 +58,10 @@ Show learned mappings:
 ads-agent chat --machine Machine1 --prompt "Show learned state mappings"
 ```
 
+Timing note:
+
+- `chat` prints response timing by default; add `--hide-timing` to suppress timing output.
+
 ## Registry structure (high level)
 
 Machine registry JSON includes:
