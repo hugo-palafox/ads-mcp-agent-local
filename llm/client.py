@@ -21,6 +21,7 @@ class LLMClient:
             model=self.settings.model_name,
             messages=messages,
             tools=tools,
+            thinking=self.settings.model_thinking,
             temperature=self.settings.temperature,
             max_tokens=self.settings.max_tokens,
         )

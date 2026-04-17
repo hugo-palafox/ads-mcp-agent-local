@@ -12,12 +12,27 @@ def test_builds_request_payload_correctly() -> None:
         model="qwen3:8b",
         messages=[{"role": "user", "content": "hi"}],
         tools=[{"type": "function", "function": {"name": "read_memory"}}],
+        thinking=None,
         temperature=0.2,
         max_tokens=100,
     )
     assert payload["model"] == "qwen3:8b"
     assert payload["tool_choice"] == "auto"
     assert payload["messages"][0]["content"] == "hi"
+    assert "think" not in payload
+
+
+def test_builds_request_payload_with_explicit_thinking() -> None:
+    client = OpenAICompatClient(base_url="http://localhost:11434/v1", api_key="ollama")
+    payload = client.build_payload(
+        model="gemma4:e4b",
+        messages=[{"role": "user", "content": "hi"}],
+        tools=[],
+        thinking=False,
+        temperature=0.2,
+        max_tokens=100,
+    )
+    assert payload["think"] is False
 
 
 def test_handles_api_response_format_correctly() -> None:
@@ -51,6 +66,7 @@ def test_handles_timeout_errors(monkeypatch: pytest.MonkeyPatch) -> None:
             model="qwen3:8b",
             messages=[{"role": "user", "content": "hi"}],
             tools=[],
+            thinking=None,
             temperature=0.1,
             max_tokens=50,
         )

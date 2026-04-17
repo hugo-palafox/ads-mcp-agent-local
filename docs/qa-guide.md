@@ -21,13 +21,17 @@ Verify that answers are grounded in tool output and that prompt intent maps to t
 
 ## Suggested validations
 
+Automated baseline:
+
+- Run `python scripts/feature_smoke_test.py` to execute the documented end-user flow and save a transcript report.
+
 1. Run `ads-agent chat --machine M1 --prompt "What is the machine state?" --show-tool-trace`.
 2. Confirm the first tool is `read_memory` for broad state or summary prompts.
 3. Run `ads-agent chat --machine M1 --prompt "Read Globals.bRun" --show-tool-trace`.
 4. Confirm the tool is `read_tag` and the answer only references returned values.
 5. Force an MCP failure and verify the final answer says the read could not be verified.
 6. Ask for a nonexistent tag and verify the answer reports missing data rather than inventing a value.
-7. Run `ads-agent chat --machine M1 --prompt "Set Main.startButton to true" --show-tool-trace` and deny confirmation. Verify final status is cancelled.
+7. Run `ads-agent chat --machine M1 --prompt "Set Globals.bStartButton to true" --show-tool-trace` and deny confirmation. Verify final status is cancelled.
 8. Run the same write prompt and approve confirmation. Verify final status is written.
 9. Run write prompt in non-interactive mode and verify pending requests are auto-cancelled.
 

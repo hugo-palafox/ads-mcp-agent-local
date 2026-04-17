@@ -12,6 +12,7 @@ class Settings:
     model_base_url: str = defaults.DEFAULT_MODEL_BASE_URL
     model_api_key: str = defaults.DEFAULT_MODEL_API_KEY
     model_name: str = defaults.DEFAULT_MODEL_NAME
+    model_thinking: bool | None = defaults.DEFAULT_MODEL_THINKING
     timeout_seconds: float = defaults.DEFAULT_TIMEOUT_SECONDS
     temperature: float = defaults.DEFAULT_TEMPERATURE
     max_tokens: int = defaults.DEFAULT_MAX_TOKENS
@@ -29,6 +30,7 @@ class Settings:
             model_base_url=os.getenv("ADS_AGENT_MODEL_BASE_URL", defaults.DEFAULT_MODEL_BASE_URL),
             model_api_key=os.getenv("ADS_AGENT_MODEL_API_KEY", defaults.DEFAULT_MODEL_API_KEY),
             model_name=os.getenv("ADS_AGENT_MODEL_NAME", defaults.DEFAULT_MODEL_NAME),
+            model_thinking=_env_optional_bool("ADS_AGENT_MODEL_THINKING", defaults.DEFAULT_MODEL_THINKING),
             timeout_seconds=float(os.getenv("ADS_AGENT_TIMEOUT_SECONDS", defaults.DEFAULT_TIMEOUT_SECONDS)),
             temperature=float(os.getenv("ADS_AGENT_TEMPERATURE", defaults.DEFAULT_TEMPERATURE)),
             max_tokens=int(os.getenv("ADS_AGENT_MAX_TOKENS", defaults.DEFAULT_MAX_TOKENS)),
@@ -46,6 +48,23 @@ def _env_bool(name: str, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_optional_bool(name: str, default: bool | None) -> bool | None:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized == "":
+        return default
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise RuntimeError(
+        f"Invalid boolean value for {name}: {value!r}. "
+        "Use one of: true/false, 1/0, yes/no, on/off."
+    )
 
 
 def _normalize_server_repo(path_value: str) -> str:

@@ -196,6 +196,21 @@ def test_teaching_store_registry_backwards_compatible_with_old_event_shape(tmp_p
     assert payload["registry_metadata"]["event_count"] == 1
 
 
+def test_teaching_store_reset_machine_learning_removes_machine_file(tmp_path) -> None:
+    store = TeachingStore(str(tmp_path))
+    store.upsert_response_rules("Machine1", [ResponseBehaviorRule(instruction="be concise")])
+    assert (tmp_path / "Machine1.json").exists() is True
+
+    existed = store.reset_machine_learning("Machine1")
+
+    assert existed is True
+    assert (tmp_path / "Machine1.json").exists() is False
+    payload = store.get_registry_payload("Machine1")
+    assert payload["response_rules"] == []
+    assert payload["tag_alias_rules"] == []
+    assert payload["learning_registry"] == []
+
+
 def test_format_tag_alias_rules_for_user_renders_aliases() -> None:
     text = format_tag_alias_rules_for_user(
         [TagAliasRule(alias_display="Good Parts", alias_normalized="good parts", target_tag="Globals.nGood")]

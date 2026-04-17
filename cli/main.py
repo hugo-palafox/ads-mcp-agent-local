@@ -8,6 +8,7 @@ from typing import Any, Callable
 from typing import Sequence
 
 from agent.orchestrator import AgentOrchestrator
+from agent.teaching import TeachingStore
 from agent.tool_executor import ToolExecutor
 from agent.tool_registry import ToolRegistry
 from config.settings import Settings
@@ -108,6 +109,7 @@ def _build_parser() -> argparse.ArgumentParser:
     chat_parser.add_argument("--model")
     chat_parser.add_argument("--base-url")
     chat_parser.add_argument("--timeout-seconds", type=float)
+    _add_thinking_args(chat_parser)
     chat_timing_group = chat_parser.add_mutually_exclusive_group()
     chat_timing_group.add_argument(
         "--show-timing",
@@ -127,16 +129,23 @@ def _build_parser() -> argparse.ArgumentParser:
     tools_subparsers = tools_parser.add_subparsers(dest="tools_command", required=True)
     tools_subparsers.add_parser("list", help="List model-exposed tools")
 
+    learning_parser = subparsers.add_parser("learning", help="Learning store management commands")
+    learning_subparsers = learning_parser.add_subparsers(dest="learning_command", required=True)
+    learning_reset_parser = learning_subparsers.add_parser("reset", help="Reset learned memory for a machine")
+    learning_reset_parser.add_argument("--machine", required=True)
+
     diagnose_model_parser = subparsers.add_parser("diagnose-model", help="Validate model connectivity")
     diagnose_model_parser.add_argument("--model")
     diagnose_model_parser.add_argument("--base-url")
     diagnose_model_parser.add_argument("--timeout-seconds", type=float)
+    _add_thinking_args(diagnose_model_parser)
 
     model_chat_parser = subparsers.add_parser("model-chat", help="Send a direct prompt to the model without tools")
     model_chat_parser.add_argument("--prompt", required=True)
     model_chat_parser.add_argument("--model")
     model_chat_parser.add_argument("--base-url")
     model_chat_parser.add_argument("--timeout-seconds", type=float)
+    _add_thinking_args(model_chat_parser)
     model_timing_group = model_chat_parser.add_mutually_exclusive_group()
     model_timing_group.add_argument(
         "--show-timing",
@@ -158,6 +167,35 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _add_thinking_args(parser: argparse.ArgumentParser) -> None:
+    thinking_group = parser.add_mutually_exclusive_group()
+    thinking_group.add_argument(
+        "--think",
+        dest="model_thinking",
+        action="store_true",
+        default=None,
+        help="Force model thinking/reasoning on for the current command.",
+    )
+    thinking_group.add_argument(
+        "--no-think",
+        dest="model_thinking",
+        action="store_false",
+        help="Force model thinking/reasoning off for the current command.",
+    )
+
+
+def _apply_model_request_overrides(settings: Settings, args: argparse.Namespace) -> Settings:
+    if getattr(args, "model", None):
+        settings.model_name = args.model
+    if getattr(args, "base_url", None):
+        settings.model_base_url = args.base_url
+    if getattr(args, "timeout_seconds", None) is not None:
+        settings.timeout_seconds = args.timeout_seconds
+    if getattr(args, "model_thinking", None) is not None:
+        settings.model_thinking = args.model_thinking
+    return settings
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -167,14 +205,27 @@ def main(argv: Sequence[str] | None = None) -> int:
             _print(ToolRegistry().list_for_model())
             return 0
 
-        if args.command == "diagnose-model":
+        if args.command == "learning" and args.learning_command == "reset":
             settings = Settings.from_env()
-            if args.model:
-                settings.model_name = args.model
-            if args.base_url:
-                settings.model_base_url = args.base_url
-            if args.timeout_seconds is not None:
-                settings.timeout_seconds = args.timeout_seconds
+            store = TeachingStore(settings.teaching_store_dir)
+            existed = store.reset_machine_learning(args.machine)
+            _print(
+                {
+                    "machine": args.machine,
+                    "teaching_store_dir": settings.teaching_store_dir,
+                    "reset": True,
+                    "existed": existed,
+                    "message": (
+                        f"Cleared learned memory for {args.machine}."
+                        if existed
+                        else f"No learned memory existed for {args.machine}."
+                    ),
+                }
+            )
+            return 0
+
+        if args.command == "diagnose-model":
+            settings = _apply_model_request_overrides(Settings.from_env(), args)
             client = LLMClient(settings)
             response = client.complete(
                 messages=[{"role": "user", "content": "Reply with the single word OK."}],
@@ -184,13 +235,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
 
         if args.command == "model-chat":
-            settings = Settings.from_env()
-            if args.model:
-                settings.model_name = args.model
-            if args.base_url:
-                settings.model_base_url = args.base_url
-            if args.timeout_seconds is not None:
-                settings.timeout_seconds = args.timeout_seconds
+            settings = _apply_model_request_overrides(Settings.from_env(), args)
             started_at = time.perf_counter()
             client = LLMClient(settings)
             response = client.complete(
@@ -217,13 +262,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
 
         if args.command == "chat":
-            settings = Settings.from_env()
-            if args.model:
-                settings.model_name = args.model
-            if args.base_url:
-                settings.model_base_url = args.base_url
-            if args.timeout_seconds is not None:
-                settings.timeout_seconds = args.timeout_seconds
+            settings = _apply_model_request_overrides(Settings.from_env(), args)
             if args.max_tool_steps is not None:
                 settings.max_tool_steps = args.max_tool_steps
             settings.debug = settings.debug or args.debug

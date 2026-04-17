@@ -7,3 +7,4 @@ build/
 dist/
 *.egg
 pip-wheel-metadata/
+artifacts/

@@ -8,7 +8,7 @@ This guide explains exactly how to run `ads-mcp-agent-local` on Windows PowerShe
 - `ads-mcp-server` repo present at:
   - `C:\Users\hugod\source\repos\ads-mcp-server`
 - Ollama installed locally (for phase 1 model target)
-- Model pulled in Ollama: `qwen3:8b`
+- Model pulled in Ollama: `gemma4:e4b`
 
 ## 2. Start Required Services
 
@@ -23,7 +23,7 @@ ollama serve
 In another terminal:
 
 ```powershell
-ollama pull qwen3:8b
+ollama pull gemma4:e4b
 ```
 
 ### 2.2 ads-mcp-server
@@ -60,13 +60,22 @@ Alternative explicit path form:
 python -m pytest -q C:\Users\hugod\source\repos\ads-mcp-agent-local
 ```
 
+End-to-end smoke run based on the documented user workflow:
+
+```powershell
+python scripts\feature_smoke_test.py
+```
+
+The smoke script runs model, MCP, read, learning, and safe write-auto-cancel flows, then writes a transcript-style log under `artifacts\smoke-tests\`.
+
 ## 5. Default Runtime Configuration
 
 The project reads these environment variables:
 
 - `ADS_AGENT_MODEL_BASE_URL` default `http://localhost:11434/v1`
 - `ADS_AGENT_MODEL_API_KEY` default `ollama`
-- `ADS_AGENT_MODEL_NAME` default `qwen3:8b`
+- `ADS_AGENT_MODEL_NAME` default `gemma4:e4b`
+- `ADS_AGENT_MODEL_THINKING` default unset/provider default
 - `ADS_AGENT_TIMEOUT_SECONDS` default `90`
 - `ADS_AGENT_TEMPERATURE` default `0.1`
 - `ADS_AGENT_MAX_TOKENS` default `800`
@@ -84,7 +93,8 @@ Recommended for Windows path consistency:
 ```powershell
 $env:ADS_AGENT_MODEL_BASE_URL = "http://localhost:11434/v1"
 $env:ADS_AGENT_MODEL_API_KEY = "ollama"
-$env:ADS_AGENT_MODEL_NAME = "qwen3:8b"
+$env:ADS_AGENT_MODEL_NAME = "gemma4:e4b"
+$env:ADS_AGENT_MODEL_THINKING = "false"
 $env:ADS_AGENT_MCP_SERVER_REPO = "C:\Users\hugod\source\repos\ads-mcp-server"
 ```
 
@@ -94,10 +104,13 @@ $env:ADS_AGENT_MCP_SERVER_REPO = "C:\Users\hugod\source\repos\ads-mcp-server"
 
 ```powershell
 ads-agent diagnose-model
+ads-agent diagnose-model --no-think
 ads-agent model-chat --prompt "Reply with one short sentence"
+ads-agent model-chat --model gemma4:e4b --no-think --prompt "Reply with one short sentence"
 ```
 
 Timing is printed by default after each `chat` and `model-chat` response. Use `--hide-timing` to suppress timing output.
+Thinking is provider-default unless configured. Use `ADS_AGENT_MODEL_THINKING=true|false` to set a session default, or `--think` / `--no-think` to override individual `chat`, `model-chat`, and `diagnose-model` commands.
 
 If the model is slow under tool use, increase the timeout for the current command:
 
@@ -152,7 +165,7 @@ ads-agent chat --machine Machine1 --prompt "What is the machine state?" --debug
 ### 8.6 Override model/base URL/step limit
 
 ```powershell
-ads-agent chat --machine Machine1 --prompt "What is the machine state?" --model qwen3:8b --base-url http://localhost:11434/v1 --max-tool-steps 6
+ads-agent chat --machine Machine1 --prompt "What is the machine state?" --model gemma4:e4b --base-url http://localhost:11434/v1 --max-tool-steps 6
 ```
 
 ### 8.6.1 Override timeout for slower local models
@@ -161,10 +174,17 @@ ads-agent chat --machine Machine1 --prompt "What is the machine state?" --model 
 ads-agent chat --machine Machine1 --prompt "What is the machine state?" --timeout-seconds 120
 ```
 
+### 8.6.2 Override model thinking per command
+
+```powershell
+ads-agent chat --machine Machine1 --prompt "list tags memory" --model gemma4:e4b --no-think --timeout-seconds 120
+ads-agent model-chat --model gemma4:e4b --think --prompt "Explain your reasoning briefly."
+```
+
 ### 8.7 Write request with confirmation checkpoint
 
 ```powershell
-ads-agent chat --machine Machine1 --prompt "Set Main.startButton to true" --show-tool-trace
+ads-agent chat --machine Machine1 --prompt "Set Globals.bStartButton to true" --show-tool-trace
 ```
 
 Expected behavior:
@@ -183,13 +203,13 @@ Non-interactive behavior:
 Write a boolean button tag:
 
 ```powershell
-ads-agent chat --machine Machine1 --prompt "Set Main.startButton to true"
+ads-agent chat --machine Machine1 --prompt "Set Globals.bStartButton to true"
 ```
 
 Cancel a write at the confirmation prompt:
 
 ```powershell
-ads-agent chat --machine Machine1 --prompt "Set Main.stopButton to false" --show-tool-trace
+ads-agent chat --machine Machine1 --prompt "Set Globals.bStopButton to true" --show-tool-trace
 ```
 
 Use a partial tag query and let the server resolve the full tag name:
@@ -198,17 +218,17 @@ Use a partial tag query and let the server resolve the full tag name:
 ads-agent chat --machine Machine1 --prompt "Turn the start button on"
 ```
 
-Direct demo intent commands (runtime will perform guarded write flow even if model returns empty text):
+Direct explicit write commands for reliable demos:
 
 ```powershell
-ads-agent chat --machine Machine1 --prompt "Start Machine" --show-tool-trace --tool-trace-format pretty
-ads-agent chat --machine Machine1 --prompt "Stop Machine" --show-tool-trace --tool-trace-format pretty
+ads-agent chat --machine Machine1 --prompt "Set Globals.bStartButton to true" --show-tool-trace
+ads-agent chat --machine Machine1 --prompt "Set Globals.bStopButton to true" --show-tool-trace
 ```
 
 Use module invocation instead of the installed script:
 
 ```powershell
-python -m cli.main chat --machine Machine1 --prompt "Set Main.startButton to true" --timeout-seconds 120
+python -m cli.main chat --machine Machine1 --prompt "Set Globals.bStartButton to true" --timeout-seconds 120
 ```
 
 What you should expect during these write examples:
@@ -261,11 +281,76 @@ Show the built-in learning rules summary:
 ads-agent chat --machine Machine1 --prompt "Show learning rules"
 ```
 
+Reset learned memory for the machine and start the demo over:
+
+```powershell
+ads-agent learning reset --machine Machine1
+```
+
+This only clears the agent's teaching store for the selected machine. It does not reset PLC tags, machine state, or server-side machine definitions.
+
 Full rule reference:
 
 - `docs/learning-rules.md`
 
-### 8.10 Project-local maintainer skills
+### 8.10 Automated smoke report
+
+Run the end-user smoke script:
+
+```powershell
+python scripts\feature_smoke_test.py --model gemma4:e4b --machine Machine1
+```
+
+Useful options:
+
+- `--use-entrypoint`: use `ads-agent` instead of `python -m cli.main`
+- `--timeout-seconds 240`: raise per-command timeout for slower models
+- `--keep-teaching-store`: keep the temporary learning store used during the smoke run
+
+Expected result:
+
+- A terminal summary showing pass/fail per command
+- A saved transcript log under `artifacts\smoke-tests\feature-smoke-report-<timestamp>.log`
+- No persistent learning-state pollution, unless `--keep-teaching-store` is used
+
+### 8.10.1 Full feature demo sequence
+
+Use this command set when you want to demo the full agent capability in a predictable order:
+
+```powershell
+ads-agent diagnose-model --model gemma4:e4b --no-think
+ads-agent model-chat --model gemma4:e4b --no-think --prompt "Reply with one sentence describing your role."
+ads-agent diagnose-mcp --machine Machine1
+
+ads-agent chat --machine Machine1 --model gemma4:e4b --no-think --prompt "What is the machine state?" --show-tool-trace --tool-trace-format pretty
+ads-agent chat --machine Machine1 --model gemma4:e4b --no-think --prompt "Read all memory tags and summarize them" --show-tool-trace --tool-trace-format pretty
+ads-agent chat --machine Machine1 --model gemma4:e4b --no-think --prompt "Read Globals.bRun" --show-tool-trace
+
+ads-agent chat --machine Machine1 --prompt "Teach that nMachineState == 2 means faulted"
+ads-agent chat --machine Machine1 --prompt "Teach response behavior: be concise and use bullet points"
+ads-agent chat --machine Machine1 --prompt "Learn alias Good Parts for Globals.nGood"
+ads-agent chat --machine Machine1 --prompt "Show learning aliases"
+ads-agent chat --machine Machine1 --prompt "Show learning registry json"
+ads-agent chat --machine Machine1 --prompt "Show learning rules"
+ads-agent learning reset --machine Machine1
+
+ads-agent chat --machine Machine1 --model gemma4:e4b --no-think --prompt "Set Globals.bStartButton to true" --show-tool-trace
+ads-agent chat --machine Machine1 --model gemma4:e4b --no-think --prompt "Set Globals.bStopButton to true" --show-tool-trace
+
+python scripts\feature_smoke_test.py --model gemma4:e4b --machine Machine1
+```
+
+What this showcases:
+
+- Model endpoint health and direct chat behavior
+- MCP bridge connectivity
+- Broad memory reads, specific tag reads, and human-readable tool trace output
+- Safe learning flows for state mappings, response behavior, aliases, and registry inspection
+- Demo reset of learned memory only, without touching PLC tags or machine definitions
+- Guarded write handling with confirmation or safe auto-cancel in non-interactive sessions
+- Automated smoke coverage with a saved transcript report
+
+### 8.11 Project-local maintainer skills
 
 Project-local skills are available under `.codex/skills` and discovered through `AGENTS.md`:
 
@@ -331,6 +416,7 @@ Fix: remove `in` and either `cd` first or pass a valid Windows path.
 - Confirm `ollama serve` is running
 - Check `ADS_AGENT_MODEL_BASE_URL`
 - Confirm model exists: `ollama list`
+- If your model appears slow or emits visible reasoning, try `--no-think` or set `$env:ADS_AGENT_MODEL_THINKING = "false"`
 
 ### `ERROR: Model request timed out`
 

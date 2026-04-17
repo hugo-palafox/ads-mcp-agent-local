@@ -134,7 +134,7 @@ ads-agent chat --machine Machine1 --prompt "What is the machine state?" --timeou
 Write-flow example:
 
 ```powershell
-ads-agent chat --machine Machine1 --prompt "Set Main.startButton to true" --timeout-seconds 120 --show-tool-trace
+ads-agent chat --machine Machine1 --prompt "Set Globals.bStartButton to true" --timeout-seconds 120 --show-tool-trace
 ```
 
 Expected write-flow behavior:

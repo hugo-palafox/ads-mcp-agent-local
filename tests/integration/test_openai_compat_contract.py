@@ -10,6 +10,7 @@ def test_openai_compat_contract() -> None:
         model="qwen3:8b",
         messages=[{"role": "user", "content": "state?"}],
         tools=[{"type": "function", "function": {"name": "read_memory", "parameters": {"type": "object"}}}],
+        thinking=None,
         temperature=0.1,
         max_tokens=100,
     )

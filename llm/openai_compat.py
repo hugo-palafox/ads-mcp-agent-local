@@ -19,6 +19,7 @@ class OpenAICompatClient:
         model: str,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
+        thinking: bool | None,
         temperature: float,
         max_tokens: int,
     ) -> dict[str, Any]:
@@ -28,6 +29,8 @@ class OpenAICompatClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        if thinking is not None:
+            payload["think"] = thinking
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
@@ -39,6 +42,7 @@ class OpenAICompatClient:
         model: str,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
+        thinking: bool | None,
         temperature: float,
         max_tokens: int,
     ) -> ModelResponse:
@@ -46,6 +50,7 @@ class OpenAICompatClient:
             model=model,
             messages=messages,
             tools=tools,
+            thinking=thinking,
             temperature=temperature,
             max_tokens=max_tokens,
         )

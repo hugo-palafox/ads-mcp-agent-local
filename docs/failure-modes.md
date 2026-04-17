@@ -9,6 +9,11 @@ Mitigations:
 - Increase `ADS_AGENT_TIMEOUT_SECONDS`.
 - Override per command with `--timeout-seconds`.
 - Expect tool-enabled chats to take longer than `diagnose-model`.
+- For thinking-capable models, try `--no-think` or set `ADS_AGENT_MODEL_THINKING=false`.
+
+## Invalid thinking setting
+
+If `ADS_AGENT_MODEL_THINKING` is set to an invalid value, startup fails with a deterministic configuration error. Use one of `true/false`, `1/0`, `yes/no`, or `on/off`.
 
 ## Malformed tool call
 

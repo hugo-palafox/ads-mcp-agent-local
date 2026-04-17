@@ -174,6 +174,14 @@ class TeachingStore:
     def format_registry_json(self, machine_id: str) -> str:
         return json.dumps(self.get_registry_payload(machine_id), indent=2)
 
+    def reset_machine_learning(self, machine_id: str) -> bool:
+        path = self._machine_path(machine_id)
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return False
+        return True
+
     def _load_payload(self, machine_id: str) -> dict[str, Any]:
         payload = _base_payload(machine_id)
         path = self._machine_path(machine_id)
