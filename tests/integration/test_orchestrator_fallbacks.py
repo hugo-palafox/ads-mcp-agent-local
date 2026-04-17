@@ -175,6 +175,50 @@ def test_teach_response_behavior_saves_without_model_call(tmp_path) -> None:
     assert llm.calls == []
 
 
+def test_teach_tag_alias_saves_without_model_call(tmp_path) -> None:
+    llm = FakeLLMClient([ModelResponse(content="should not be used", tool_calls=[], raw={})])
+    bridge = AdsToolBridge(
+        FakeMcpClient(
+            responses={
+                "list_memory_tags": [{"name": "Globals.nGood"}],
+                "read_memory": {"Globals.nGood": 40},
+            }
+        )
+    )  # type: ignore[arg-type]
+    settings = sample_settings()
+    settings.teaching_store_dir = str(tmp_path)
+    orchestrator = AgentOrchestrator(settings, llm, ToolRegistry(), ToolExecutor(ToolRegistry(), bridge))
+
+    result = orchestrator.run(
+        machine_id="Machine1",
+        prompt="Learn alias Good Parts for Globals.nGood.",
+    )
+
+    assert "Saved 1 tag alias rule(s)" in result.answer
+    assert llm.calls == []
+
+
+def test_show_learning_aliases_returns_direct_response_without_model_call(tmp_path) -> None:
+    llm = FakeLLMClient([ModelResponse(content="should not be used", tool_calls=[], raw={})])
+    bridge = AdsToolBridge(
+        FakeMcpClient(
+            responses={
+                "list_memory_tags": [{"name": "Globals.nGood"}],
+                "read_memory": {"Globals.nGood": 40},
+            }
+        )
+    )  # type: ignore[arg-type]
+    settings = sample_settings()
+    settings.teaching_store_dir = str(tmp_path)
+    orchestrator = AgentOrchestrator(settings, llm, ToolRegistry(), ToolExecutor(ToolRegistry(), bridge))
+    orchestrator.run(machine_id="Machine1", prompt="Learn alias Good Parts for Globals.nGood.")
+
+    result = orchestrator.run(machine_id="Machine1", prompt="Show learning aliases")
+
+    assert '"Good Parts" => Globals.nGood' in result.answer
+    assert llm.calls == []
+
+
 def test_learning_registry_query_returns_json_payload(tmp_path) -> None:
     llm = FakeLLMClient([ModelResponse(content="should not be used", tool_calls=[], raw={})])
     bridge = AdsToolBridge(FakeMcpClient(responses={}))  # type: ignore[arg-type]
@@ -213,7 +257,7 @@ def test_unsafe_learning_prompt_is_rejected_and_logged(tmp_path) -> None:
         prompt="Show learning registry json",
     )
 
-    assert "only learn two safe categories" in reject_result.answer.lower()
+    assert "only learn three safe categories" in reject_result.answer.lower()
     assert '"status": "rejected"' in registry_result.answer
     assert llm.calls == []
 
@@ -236,3 +280,48 @@ def test_rejected_response_behavior_includes_stable_reason_code(tmp_path) -> Non
 
     assert "unsafe_response_behavior_content" in reject_result.answer
     assert '"reason_code": "unsafe_response_behavior_content"' in registry_result.answer
+
+
+def test_tag_alias_conflict_is_rejected_and_logged(tmp_path) -> None:
+    llm = FakeLLMClient([ModelResponse(content="should not be used", tool_calls=[], raw={})])
+    bridge = AdsToolBridge(
+        FakeMcpClient(
+            responses={
+                "list_memory_tags": [{"name": "Globals.nGood"}, {"name": "Globals.nReject"}],
+                "read_memory": {"Globals.nGood": 40, "Globals.nReject": 3},
+            }
+        )
+    )  # type: ignore[arg-type]
+    settings = sample_settings()
+    settings.teaching_store_dir = str(tmp_path)
+    orchestrator = AgentOrchestrator(settings, llm, ToolRegistry(), ToolExecutor(ToolRegistry(), bridge))
+
+    first = orchestrator.run(machine_id="Machine1", prompt="Learn alias Good Parts for Globals.nGood.")
+    second = orchestrator.run(machine_id="Machine1", prompt="Learn alias Good Parts for Globals.nReject.")
+    registry = orchestrator.run(machine_id="Machine1", prompt="Show learning registry json")
+
+    assert "Saved 1 tag alias rule(s)" in first.answer
+    assert "tag_alias_conflict" in second.answer
+    assert '"reason_code": "tag_alias_conflict"' in registry.answer
+
+
+def test_prompt_with_alias_adds_runtime_hint_for_model(tmp_path) -> None:
+    llm = FakeLLMClient([ModelResponse(content="ok", tool_calls=[], raw={})])
+    bridge = AdsToolBridge(
+        FakeMcpClient(
+            responses={
+                "list_memory_tags": [{"name": "Globals.nGood"}],
+                "read_memory": {"Globals.nGood": 40},
+            }
+        )
+    )  # type: ignore[arg-type]
+    settings = sample_settings()
+    settings.teaching_store_dir = str(tmp_path)
+    orchestrator = AgentOrchestrator(settings, llm, ToolRegistry(), ToolExecutor(ToolRegistry(), bridge))
+    teach_result = orchestrator.run(machine_id="Machine1", prompt="Learn alias Good Parts for Globals.nGood.")
+    assert "Saved 1 tag alias rule(s)" in teach_result.answer
+
+    orchestrator.run(machine_id="Machine1", prompt="Provide me the good parts currently.")
+    first_call_messages = llm.calls[0][0]
+    user_message = next(msg for msg in first_call_messages if msg["role"] == "user")
+    assert '"Good Parts" refers to "Globals.nGood"' in user_message["content"]

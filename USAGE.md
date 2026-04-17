@@ -232,6 +232,18 @@ Teach response behavior preference:
 ads-agent chat --machine Machine1 --prompt "Teach response behavior: be concise and use bullet points"
 ```
 
+Teach tag alias:
+
+```powershell
+ads-agent chat --machine Machine1 --prompt "Learn alias Good Parts for Globals.nGood"
+```
+
+Show learned aliases:
+
+```powershell
+ads-agent chat --machine Machine1 --prompt "Show learning aliases"
+```
+
 Show full learned registry JSON for the machine:
 
 ```powershell
@@ -240,7 +252,7 @@ ads-agent chat --machine Machine1 --prompt "Show learning registry json"
 
 Learning guardrail:
 
-- The agent only learns two safe categories: `tag behavior` and `response behavior`.
+- The agent only learns three safe categories: `tag behavior`, `response behavior`, and `tag alias`.
 - Non-safe teaching requests are rejected and logged in `learning_registry` with status `rejected`.
 
 Show the built-in learning rules summary:

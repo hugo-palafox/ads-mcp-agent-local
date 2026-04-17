@@ -51,7 +51,9 @@ ads-agent diagnose-mcp --machine Machine1
 ads-agent chat --machine Machine1 --prompt "What is the machine state?"
 ads-agent chat --machine Machine1 --prompt "Teach that bRun true means running, and nMachineState == 1 is running, ==2 faulted, ==3 stopped"
 ads-agent chat --machine Machine1 --prompt "Teach response behavior: be concise and use bullet points"
+ads-agent chat --machine Machine1 --prompt "Learn alias Good Parts for Globals.nGood"
 ads-agent chat --machine Machine1 --prompt "Show learned state mappings"
+ads-agent chat --machine Machine1 --prompt "Show learning aliases"
 ads-agent chat --machine Machine1 --prompt "Show learning registry json"
 ads-agent chat --machine Machine1 --prompt "What is the machine state?" --timeout-seconds 120
 ads-agent chat --machine Machine1 --prompt "Read all memory tags and summarize them" --show-tool-trace
@@ -82,7 +84,7 @@ These skills are implementation-first and directly update their target files.
 - Local tool-enabled model calls can take longer than trivial diagnostics, so the CLI supports `--timeout-seconds` and now defaults to 90 seconds.
 - Phase 2 still uses an in-process transport for local reliability and simple testing.
 - The rest of the agent is transport-agnostic and can later move to a networked MCP client without rewriting the tool loop.
-- Learning guardrail: the agent only learns safe `tag behavior` mappings and `response behavior` preferences, with accepted/rejected learning recorded in machine JSON.
+- Learning guardrail: the agent only learns safe `tag behavior` mappings, `response behavior` preferences, and `tag aliases`, with accepted/rejected learning recorded in machine JSON.
 
 ## Quick demo commands
 

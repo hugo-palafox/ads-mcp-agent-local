@@ -11,20 +11,27 @@ from agent.teaching import (
     LearningRejection,
     ResponseBehaviorRule,
     StateRule,
+    TagAliasRule,
     TeachingStore,
+    evaluate_tag_alias_rule,
     evaluate_response_behavior_rule,
+    format_tag_alias_rules_for_user,
     format_response_rules_for_user,
     format_state_rules_for_user,
     interpret_state_from_memory,
     learning_guardrail_message,
     learning_rules_for_user,
+    looks_like_tag_alias_query,
     looks_like_learning_intent,
     looks_like_learning_registry_query,
     looks_like_learning_rules_query,
     looks_like_response_behavior_query,
     looks_like_state_rule_query,
+    normalize_alias,
     parse_response_behavior_prompt,
+    parse_tag_alias_prompt,
     parse_teaching_prompt,
+    resolve_alias_target,
 )
 from agent.tool_executor import ToolExecutor
 from agent.tool_registry import ToolRegistry
@@ -51,18 +58,23 @@ class AgentOrchestrator:
     def run(self, *, machine_id: str, prompt: str) -> AgentRunResult:
         learned_state_rules = self.teaching_store.list_state_rules(machine_id)
         learned_response_rules = self.teaching_store.list_response_rules(machine_id)
-        conversation = Conversation(build_system_prompt(machine_id, learned_state_rules, learned_response_rules))
+        learned_tag_alias_rules = self.teaching_store.list_tag_alias_rules(machine_id)
+        conversation = Conversation(
+            build_system_prompt(machine_id, learned_state_rules, learned_response_rules, learned_tag_alias_rules)
+        )
         teaching_result = self._attempt_teaching_prompt(
             machine_id=machine_id,
             prompt=prompt,
             conversation=conversation,
             learned_state_rules=learned_state_rules,
             learned_response_rules=learned_response_rules,
+            learned_tag_alias_rules=learned_tag_alias_rules,
         )
         if teaching_result is not None:
             return teaching_result
 
-        enriched_prompt = self._augment_prompt_with_intent_hints(prompt)
+        enriched_prompt = self._augment_prompt_with_alias_hints(prompt, learned_tag_alias_rules)
+        enriched_prompt = self._augment_prompt_with_intent_hints(enriched_prompt)
         conversation.add_user(enriched_prompt)
         tool_trace = []
         failed_tool_calls = 0
@@ -173,6 +185,7 @@ class AgentOrchestrator:
         conversation: Conversation,
         learned_state_rules: list[StateRule],
         learned_response_rules: list[ResponseBehaviorRule],
+        learned_tag_alias_rules: list[TagAliasRule],
     ) -> AgentRunResult | None:
         if looks_like_learning_rules_query(prompt):
             conversation.add_user(prompt)
@@ -186,25 +199,82 @@ class AgentOrchestrator:
             conversation.add_assistant(answer)
             return AgentRunResult(answer=answer, messages=conversation.messages, tool_trace=[], iterations=0)
 
+        if looks_like_tag_alias_query(prompt):
+            conversation.add_user(prompt)
+            answer = format_tag_alias_rules_for_user(learned_tag_alias_rules)
+            conversation.add_assistant(answer)
+            return AgentRunResult(answer=answer, messages=conversation.messages, tool_trace=[], iterations=0)
+
         parsed_state_rules = parse_teaching_prompt(prompt)
         parsed_response_rules = parse_response_behavior_prompt(prompt)
+        parsed_alias_rules = parse_tag_alias_prompt(prompt)
         accepted_response_rules: list[ResponseBehaviorRule] = []
         rejected_response_rejections: list[LearningRejection] = []
+        accepted_alias_rules: list[TagAliasRule] = []
+        rejected_alias_rejections: list[LearningRejection] = []
+        known_targets = self._discover_known_learning_targets(machine_id) if parsed_alias_rules else []
+        alias_target_index = {target.lower(): target for target in known_targets}
+        current_alias_index = {normalize_alias(rule.alias_display): rule for rule in learned_tag_alias_rules}
+        pending_alias_index = dict(current_alias_index)
         for rule in parsed_response_rules:
             rejection = evaluate_response_behavior_rule(rule)
             if rejection is not None:
                 rejected_response_rejections.append(rejection)
                 continue
             accepted_response_rules.append(rule)
+        for rule in parsed_alias_rules:
+            basic_rejection = evaluate_tag_alias_rule(rule)
+            if basic_rejection is not None:
+                rejected_alias_rejections.append(basic_rejection)
+                continue
+            canonical_target, ambiguous_candidates = resolve_alias_target(rule.target_tag, known_targets)
+            if ambiguous_candidates:
+                rejected_alias_rejections.append(
+                    LearningRejection(
+                        reason_code="tag_alias_ambiguous_target",
+                        message=f"Alias target '{rule.target_tag}' is ambiguous; matches: {', '.join(ambiguous_candidates)}.",
+                    )
+                )
+                continue
+            if canonical_target is None:
+                rejected_alias_rejections.append(
+                    LearningRejection(
+                        reason_code="tag_alias_unknown_target",
+                        message=f"Alias target '{rule.target_tag}' was not found in known machine memory/tag fields.",
+                    )
+                )
+                continue
+            alias_key = normalize_alias(rule.alias_display)
+            existing = pending_alias_index.get(alias_key)
+            if existing is not None and existing.target_tag.lower() != canonical_target.lower():
+                rejected_alias_rejections.append(
+                    LearningRejection(
+                        reason_code="tag_alias_conflict",
+                        message=(
+                            f"Alias '{rule.alias_display}' already maps to '{existing.target_tag}' "
+                            f"and cannot be remapped to '{canonical_target}'."
+                        ),
+                    )
+                )
+                continue
+            canonical_rule = TagAliasRule(
+                alias_display=rule.alias_display,
+                alias_normalized=alias_key,
+                target_tag=alias_target_index.get(canonical_target.lower(), canonical_target),
+            )
+            accepted_alias_rules.append(canonical_rule)
+            pending_alias_index[alias_key] = canonical_rule
 
-        if parsed_state_rules or parsed_response_rules:
+        if parsed_state_rules or parsed_response_rules or parsed_alias_rules:
             conversation.add_user(prompt)
             answer_parts: list[str] = []
             answer_parts.append(
                 f"Learning summary for {machine_id}: "
                 f"accepted_tag_behavior={len(parsed_state_rules)}, "
                 f"accepted_response_behavior={len(accepted_response_rules)}, "
-                f"rejected_response_behavior={len(rejected_response_rejections)}."
+                f"rejected_response_behavior={len(rejected_response_rejections)}, "
+                f"accepted_tag_alias={len(accepted_alias_rules)}, "
+                f"rejected_tag_alias={len(rejected_alias_rejections)}."
             )
 
             merged_state_rules = learned_state_rules
@@ -255,6 +325,32 @@ class AgentOrchestrator:
                 )
                 answer_parts.append(detail)
 
+            merged_tag_alias_rules = learned_tag_alias_rules
+            if accepted_alias_rules:
+                added_alias, updated_alias, merged_tag_alias_rules = self.teaching_store.upsert_tag_alias_rules(
+                    machine_id,
+                    accepted_alias_rules,
+                )
+                detail = (
+                    f"Saved {len(accepted_alias_rules)} tag alias rule(s) "
+                    f"(added={added_alias}, updated={updated_alias})."
+                )
+                self.teaching_store.record_learning_event(
+                    machine_id,
+                    category="tag_alias",
+                    status="accepted",
+                    source_prompt=prompt,
+                    detail=detail,
+                    reason_code="accepted_tag_alias",
+                    metadata={
+                        "parsed_tag_alias_rules": len(parsed_alias_rules),
+                        "accepted_tag_alias_rules": len(accepted_alias_rules),
+                        "added": added_alias,
+                        "updated": updated_alias,
+                    },
+                )
+                answer_parts.append(detail)
+
             if rejected_response_rejections:
                 first_rejection = rejected_response_rejections[0]
                 rejection_detail = (
@@ -275,10 +371,32 @@ class AgentOrchestrator:
                 )
                 answer_parts.append(rejection_detail)
 
+            if rejected_alias_rejections:
+                first_rejection = rejected_alias_rejections[0]
+                rejection_detail = (
+                    f"Rejected {len(rejected_alias_rejections)} tag alias rule(s). "
+                    f"First reason [{first_rejection.reason_code}]: {first_rejection.message}"
+                )
+                self.teaching_store.record_learning_event(
+                    machine_id,
+                    category="tag_alias",
+                    status="rejected",
+                    source_prompt=prompt,
+                    detail=rejection_detail,
+                    reason_code=first_rejection.reason_code,
+                    metadata={
+                        "parsed_tag_alias_rules": len(parsed_alias_rules),
+                        "rejected_tag_alias_rules": len(rejected_alias_rejections),
+                    },
+                )
+                answer_parts.append(rejection_detail)
+
             if parsed_state_rules:
                 answer_parts.append(format_state_rules_for_user(merged_state_rules))
             if accepted_response_rules:
                 answer_parts.append(format_response_rules_for_user(merged_response_rules))
+            if accepted_alias_rules:
+                answer_parts.append(format_tag_alias_rules_for_user(merged_tag_alias_rules))
 
             answer = " ".join(answer_parts)
             conversation.add_assistant(answer)
@@ -303,7 +421,8 @@ class AgentOrchestrator:
             answer = (
                 f"Learning rejected [{reason_code}]: {detail} "
                 "Example tag behavior: 'Teach that nMachineState == 2 means faulted.' "
-                "Example response behavior: 'Teach response behavior: be concise and use bullets.'"
+                "Example response behavior: 'Teach response behavior: be concise and use bullets.' "
+                "Example tag alias: 'Learn alias Good Parts for Globals.nGood.'"
             )
             conversation.add_assistant(answer)
             return AgentRunResult(answer=answer, messages=conversation.messages, tool_trace=[], iterations=0)
@@ -321,6 +440,35 @@ class AgentOrchestrator:
             return AgentRunResult(answer=answer, messages=conversation.messages, tool_trace=[], iterations=0)
 
         return None
+
+    def _discover_known_learning_targets(self, machine_id: str) -> list[str]:
+        known_targets: list[str] = []
+        seen: set[str] = set()
+
+        tags_result = self.tool_executor.execute("list_memory_tags", {"machine_id": machine_id})
+        if tags_result.ok and isinstance(tags_result.output, list):
+            for item in tags_result.output:
+                if not isinstance(item, dict):
+                    continue
+                for key in ("name", "tag_name", "tag", "alias"):
+                    raw = item.get(key)
+                    if isinstance(raw, str):
+                        candidate = raw.strip()
+                        if candidate and candidate.lower() not in seen:
+                            seen.add(candidate.lower())
+                            known_targets.append(candidate)
+
+        memory_result = self.tool_executor.execute("read_memory", {"machine_id": machine_id})
+        if memory_result.ok and isinstance(memory_result.output, dict):
+            for key in memory_result.output.keys():
+                if not isinstance(key, str):
+                    continue
+                candidate = key.strip()
+                if candidate and candidate.lower() not in seen:
+                    seen.add(candidate.lower())
+                    known_targets.append(candidate)
+
+        return known_targets
 
     def _fallback_answer_for_empty_content(self, tool_trace: list, user_prompt: str) -> str:
         if not tool_trace:
@@ -537,6 +685,25 @@ class AgentOrchestrator:
         if not hints:
             return p
         return f"{p}\n\n[Runtime intent hints]\n- " + "\n- ".join(hints)
+
+    def _augment_prompt_with_alias_hints(self, prompt: str, learned_aliases: list[TagAliasRule]) -> str:
+        if not learned_aliases:
+            return prompt.strip()
+        text = prompt.strip()
+        matched_hints: list[str] = []
+        seen_targets: set[str] = set()
+        for rule in sorted(learned_aliases, key=lambda item: len(item.alias_display), reverse=True):
+            pattern = re.compile(rf"(?<!\w){re.escape(rule.alias_display)}(?!\w)", flags=re.IGNORECASE)
+            if not pattern.search(text):
+                continue
+            target_key = rule.target_tag.lower()
+            if target_key in seen_targets:
+                continue
+            seen_targets.add(target_key)
+            matched_hints.append(f'"{rule.alias_display}" refers to "{rule.target_tag}".')
+        if not matched_hints:
+            return text
+        return f"{text}\n\n[Learned alias hints]\n- " + "\n- ".join(matched_hints)
 
     def _looks_like_start_intent(self, low_prompt: str) -> bool:
         phrases = ("start machine", "start the machine", "turn on machine", "turn on the machine", "start machine1")

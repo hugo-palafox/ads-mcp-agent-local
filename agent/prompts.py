@@ -3,8 +3,10 @@ from __future__ import annotations
 from agent.teaching import (
     ResponseBehaviorRule,
     StateRule,
+    TagAliasRule,
     format_response_rules_for_prompt,
     format_state_rules_for_prompt,
+    format_tag_alias_rules_for_prompt,
 )
 
 
@@ -41,6 +43,7 @@ def build_system_prompt(
     machine_id: str | None = None,
     learned_state_rules: list[StateRule] | None = None,
     learned_response_rules: list[ResponseBehaviorRule] | None = None,
+    learned_tag_alias_rules: list[TagAliasRule] | None = None,
 ) -> str:
     parts = [SYSTEM_PROMPT]
     if machine_id:
@@ -49,4 +52,6 @@ def build_system_prompt(
         parts.append(format_state_rules_for_prompt(learned_state_rules))
     if learned_response_rules:
         parts.append(format_response_rules_for_prompt(learned_response_rules))
+    if learned_tag_alias_rules:
+        parts.append(format_tag_alias_rules_for_prompt(learned_tag_alias_rules))
     return "\n".join(parts)

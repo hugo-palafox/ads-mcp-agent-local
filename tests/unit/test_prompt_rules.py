@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from agent.prompts import build_system_prompt
-from agent.teaching import ResponseBehaviorRule, StateRule
+from agent.teaching import ResponseBehaviorRule, StateRule, TagAliasRule
 
 
 def test_include_read_only_instructions() -> None:
@@ -44,3 +44,14 @@ def test_include_user_taught_response_behavior_rules_when_present() -> None:
     )
     assert "User-taught response behavior preferences for this machine" in prompt
     assert "be concise and use bullet points" in prompt
+
+
+def test_include_user_taught_tag_alias_rules_when_present() -> None:
+    prompt = build_system_prompt(
+        "M1",
+        [StateRule(tag="bRun", value=True, meaning="running")],
+        [ResponseBehaviorRule(instruction="be concise and use bullet points")],
+        [TagAliasRule(alias_display="Good Parts", alias_normalized="good parts", target_tag="Globals.nGood")],
+    )
+    assert "User-taught tag aliases for this machine" in prompt
+    assert '"Good Parts" maps to Globals.nGood' in prompt
