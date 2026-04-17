@@ -1,5 +1,12 @@
 # Session Log
 
+## 2026-04-17 14:26 MST - Planned learned command aliases and deterministic start-stop
+- Request: Save the approved plan to support learned command phrases like `Set Max Speed` and fix unreliable `Start machine` / `Stop machine` behavior.
+- Plan: Add a fourth learning category for exact phrase-to-tag-value command aliases, execute matched phrases through the guarded write flow, and refactor built-in start/stop into the same deterministic pre-LLM path.
+- Implemented: Captured the agreed design constraints in repo history, including exact phrase matching, single fixed scalar writes, registry/query support, and confirmation-preserving execution semantics.
+- Verification: Planning-only session; validated the current teaching/orchestrator code paths and documented the approved implementation direction without mutating runtime behavior.
+- Risks/Follow-ups: Implementation still needs code, tests, and docs updates, especially around command-alias guardrails, registry reason codes, learning reset coverage, and deterministic tag resolution for start/stop.
+
 ## 2026-04-17 00:25 MST - Smoke harness demo-mode artifacts
 - Request: Extend the feature smoke harness into a dual-purpose operator tool for strict validation and presentation demo support.
 - Plan: Preserve smoke mode, add a structured demo mode with reset-at-start learning flow, transcript/replay artifact generation, and observation-oriented outcome classification.
