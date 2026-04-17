@@ -23,7 +23,8 @@ Verify that answers are grounded in tool output and that prompt intent maps to t
 
 Automated baseline:
 
-- Run `python scripts/feature_smoke_test.py` to execute the documented end-user flow and save a transcript report.
+- Run `python scripts/feature_smoke_test.py --mode smoke` for strict validation.
+- Run `python scripts/feature_smoke_test.py --mode demo` for a presentation-oriented transcript and replay artifact set.
 
 1. Run `ads-agent chat --machine M1 --prompt "What is the machine state?" --show-tool-trace`.
 2. Confirm the first tool is `read_memory` for broad state or summary prompts.

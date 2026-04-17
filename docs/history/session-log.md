@@ -1,5 +1,12 @@
 # Session Log
 
+## 2026-04-17 00:25 MST - Smoke harness demo-mode artifacts
+- Request: Extend the feature smoke harness into a dual-purpose operator tool for strict validation and presentation demo support.
+- Plan: Preserve smoke mode, add a structured demo mode with reset-at-start learning flow, transcript/replay artifact generation, and observation-oriented outcome classification.
+- Implemented: Refactored `scripts/feature_smoke_test.py` into `--mode smoke|demo`, added structured demo step metadata, generated raw JSON/Markdown/replay artifacts, and updated README/USAGE/QA/changelog docs to match.
+- Verification: Targeted unit tests plus live smoke and demo runs are executed after implementation; see final response for exact commands and artifact outputs.
+- Risks/Follow-ups: Demo observations depend on current model wording and machine tags; if live terminology changes, the demo evaluators may need adjustment rather than runtime fixes.
+
 ## 2026-04-17 00:10 MST - Learning reset CLI command
 - Request: Add a command to delete only the agent's learned memory so demos can start over cleanly without resetting PLC tags.
 - Plan: Add a CLI command that clears the `TeachingStore` entry for one machine, then document the reset flow and verify it with targeted tests plus a live CLI run.

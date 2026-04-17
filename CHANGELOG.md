@@ -6,11 +6,13 @@
 - Added generic model thinking control through `ADS_AGENT_MODEL_THINKING` plus `--think` and `--no-think` overrides on `chat`, `model-chat`, and `diagnose-model`.
 - Added `scripts/feature_smoke_test.py` to automate the documented user workflow and write a transcript-style smoke report under `artifacts/smoke-tests/`.
 - Added `ads-agent learning reset --machine <id>` to clear only the agent's learned memory for a machine without touching PLC tags or machine definitions.
+- Added demo-mode artifact generation in `scripts/feature_smoke_test.py` with raw JSON, Markdown transcript, and replay command output for presentation use.
 
 ### Changed
 - Changed the OpenAI-compatible request builder to include top-level `think` only when explicitly configured, preserving provider-default behavior otherwise.
 - Changed docs and examples to reflect `gemma4:e4b` as the current default model and to document thinking-control usage.
 - Changed README and usage docs to include a full feature-demo command sequence that showcases diagnostics, reads, learning, guarded writes, and smoke reporting.
+- Changed `scripts/feature_smoke_test.py` into a dual-mode operator tool with strict `--mode smoke` validation and observation-oriented `--mode demo` presentation flow.
 
 ### Fixed
 - Fixed stale runtime documentation that still referenced `qwen3:8b` as the default model.

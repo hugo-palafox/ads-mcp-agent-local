@@ -69,7 +69,7 @@ Model thinking is provider-default unless configured. Use `ADS_AGENT_MODEL_THINK
 
 For full setup and run instructions, see `USAGE.md`.
 For learning feature rules and examples, see [`docs/learning-rules.md`](docs/learning-rules.md).
-For an automated end-user smoke run with a saved transcript report, use `python scripts/feature_smoke_test.py`.
+For automated smoke validation or a replayable live-demo transcript, use `python scripts/feature_smoke_test.py --mode smoke|demo`.
 
 ## Project-local maintainer skills
 
@@ -111,33 +111,12 @@ python scripts/feature_smoke_test.py
 Use this ordered command list to showcase the full agent capability from diagnostics through reads, learning, guarded writes, and automated smoke coverage:
 
 ```powershell
-ads-agent diagnose-model --model gemma4:e4b --no-think
-ads-agent model-chat --model gemma4:e4b --no-think --prompt "Reply with one sentence describing your role."
-ads-agent diagnose-mcp --machine Machine1
-
-ads-agent chat --machine Machine1 --model gemma4:e4b --no-think --prompt "What is the machine state?" --show-tool-trace --tool-trace-format pretty
-ads-agent chat --machine Machine1 --model gemma4:e4b --no-think --prompt "Read all memory tags and summarize them" --show-tool-trace --tool-trace-format pretty
-ads-agent chat --machine Machine1 --model gemma4:e4b --no-think --prompt "Read Globals.bRun" --show-tool-trace
-
-ads-agent chat --machine Machine1 --prompt "Teach that nMachineState == 2 means faulted"
-ads-agent chat --machine Machine1 --prompt "Teach response behavior: be concise and use bullet points"
-ads-agent chat --machine Machine1 --prompt "Learn alias Good Parts for Globals.nGood"
-ads-agent chat --machine Machine1 --prompt "Show learning aliases"
-ads-agent chat --machine Machine1 --prompt "Show learning registry json"
-ads-agent chat --machine Machine1 --prompt "Show learning rules"
-ads-agent learning reset --machine Machine1
-
-ads-agent chat --machine Machine1 --model gemma4:e4b --no-think --prompt "Set Globals.bStartButton to true" --show-tool-trace
-ads-agent chat --machine Machine1 --model gemma4:e4b --no-think --prompt "Set Globals.bStopButton to true" --show-tool-trace
-
-python scripts/feature_smoke_test.py --model gemma4:e4b --machine Machine1
+python scripts/feature_smoke_test.py --mode demo --model gemma4:e4b --machine Machine1
 ```
 
 Demo flow:
 
-- The first three commands prove model and MCP connectivity.
-- The next three show broad reads, summarized reads, and specific-tag reads with tool trace visibility.
-- The learning commands show safe teach/retrieve behavior for state mappings, response preferences, aliases, and registry inspection.
-- `ads-agent learning reset --machine Machine1` clears only the agent's learned memory for that machine; it does not reset PLC tags or delete machine configuration.
-- The write commands demonstrate the guarded confirmation workflow. In a non-interactive shell they auto-cancel safely.
-- The smoke script runs a transcripted end-user feature pass and saves a report under `artifacts/smoke-tests/`.
+- Demo mode resets learned memory at the start, then walks through readiness, discovery, reads, clarification, learning, follow-up improvement, and guarded writes.
+- It captures a real unknown-term clarification before teaching and repeats the same intent after alias learning.
+- It writes three artifacts under `artifacts/smoke-tests/`: raw JSON, Markdown transcript, and replay command list.
+- Use `--mode smoke` when you want strict pass/fail validation instead of the presentation-oriented transcript flow.
